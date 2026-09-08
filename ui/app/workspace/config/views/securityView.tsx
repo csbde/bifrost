@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { IS_ENTERPRISE } from "@/lib/constants/config";
 import { getErrorMessage, useGetCoreConfigQuery, useUpdateCoreConfigMutation } from "@/lib/store";
-import { AuthConfig, CoreConfig, DefaultCoreConfig } from "@/lib/types/config";
+import { AuthConfig, CoreConfig, DefaultCoreConfig, OIDCConfig } from "@/lib/types/config";
 import { SecretVar } from "@/lib/types/schemas";
 import { parseArrayFromText } from "@/lib/utils/array";
 import { formatCooldown } from "@/lib/utils/duration";
@@ -25,14 +25,64 @@ import { toast } from "sonner";
 // Go duration string: one or more <number><unit> segments, e.g. "5m", "1h30m".
 const COOLDOWN_PATTERN = /^(\d+(\.\d+)?(ns|us|µs|ms|s|m|h))+$/;
 
+// emptyOIDCConfig is the blank SSO form shape, used before/without server data.
+function emptyOIDCConfig(): OIDCConfig {
+	return {
+		enabled: false,
+		issuer: "",
+		client_id: "",
+		client_secret: { value: "", ref: "" },
+		scopes: [],
+		redirect_uri: "",
+		allowed_claim: "",
+		allowed_values: [],
+	};
+}
+
+// normalizeOIDCConfig coerces the server's oidc_config (which may omit optional
+// array/string fields) into the full editable shape so the form never binds to
+// undefined/null.
+function normalizeOIDCConfig(oidc?: OIDCConfig): OIDCConfig {
+	const empty = emptyOIDCConfig();
+	if (!oidc) return empty;
+	return {
+		enabled: !!oidc.enabled,
+		issuer: oidc.issuer ?? empty.issuer,
+		client_id: oidc.client_id ?? empty.client_id,
+		client_secret: oidc.client_secret ?? empty.client_secret,
+		scopes: oidc.scopes ?? empty.scopes,
+		redirect_uri: oidc.redirect_uri ?? empty.redirect_uri,
+		allowed_claim: oidc.allowed_claim ?? empty.allowed_claim,
+		allowed_values: oidc.allowed_values ?? empty.allowed_values,
+	};
+}
+
+// oidcFormToPayload strips the empty optional arrays/strings so an untouched
+// optional field isn't sent as [] / "" on every save.
+function oidcFormToPayload(oidc: OIDCConfig): OIDCConfig {
+	return {
+		...oidc,
+		client_secret: oidc.client_secret,
+		scopes: oidc.scopes?.length ? oidc.scopes : undefined,
+		redirect_uri: oidc.redirect_uri?.trim() ? oidc.redirect_uri.trim() : undefined,
+		allowed_claim: oidc.allowed_claim?.trim() ? oidc.allowed_claim.trim() : undefined,
+		allowed_values: oidc.allowed_values?.length ? oidc.allowed_values : undefined,
+	};
+}
+
 export default function SecurityView() {
 	const hasSettingsUpdateAccess = useRbac(RbacResource.Settings, RbacOperation.Update);
 	const { data: bifrostConfig } = useGetCoreConfigQuery({ fromDB: true });
-	const { data: authType, isLoading: authTypeLoading, error: authTypeError } = useGetAuthTypeQuery(undefined, { skip: !IS_ENTERPRISE });
+	const { data: authType, isLoading: authTypeLoading, error: authTypeError } = useGetAuthTypeQuery();
 	const config = bifrostConfig?.client_config;
 	const [updateCoreConfig, { isLoading }] = useUpdateCoreConfigMutation();
 	const [localConfig, setLocalConfig] = useState<CoreConfig>(DefaultCoreConfig);
-	const showPasswordSection = !IS_ENTERPRISE || (!authTypeLoading && !authTypeError && authType?.type !== "sso");
+	// Enterprise renders a spinner while the auth type is unknown; OSS has no
+	// spinner, so it keeps the password card visible until the type resolves to
+	// "sso" (OIDC/SCIM-only). On a probe error we always keep the password card
+	// visible so the admin is never locked out of the password fallback.
+	const authTypeKnown = !authTypeLoading && !authTypeError && !!authType;
+	const showPasswordSection = IS_ENTERPRISE ? authTypeKnown && authType?.type !== "sso" : authType?.type !== "sso";
 	const passwordInputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 	const passwordUnchangedRef = useRef(true);
 
@@ -54,6 +104,7 @@ export default function SecurityView() {
 		admin_username: { value: "", ref: "" },
 		admin_password: { value: "", ref: "" },
 		is_enabled: false,
+		oidc_config: emptyOIDCConfig(),
 	});
 	const [passwordError, setPasswordError] = useState("");
 	const [setupToken, setSetupToken] = useState("");
@@ -63,6 +114,12 @@ export default function SecurityView() {
 	// configured via setup_token in config.json (or BIFROST_SETUP_TOKEN), so this
 	// field only needs to show up that once.
 	const isFirstTimeSetup = !bifrostConfig?.auth_config;
+	// OIDC SSO form state, defaulting to the blank shape until server data hydrates.
+	const oidc = authConfig.oidc_config ?? emptyOIDCConfig();
+	const oidcEnabled = oidc.enabled === true;
+	// While SSO is OFF the inputs are inert; the first-time setup guard mirrors the
+	// password section, where the operator is expected to set credentials out of band.
+	const oidcDisabled = !oidcEnabled || isFirstTimeSetup;
 
 	useEffect(() => {
 		if (bifrostConfig && config) {
@@ -77,7 +134,7 @@ export default function SecurityView() {
 		}
 		if (bifrostConfig?.auth_config) {
 			passwordUnchangedRef.current = true;
-			setAuthConfig(bifrostConfig.auth_config);
+			setAuthConfig({ ...bifrostConfig.auth_config, oidc_config: normalizeOIDCConfig(bifrostConfig.auth_config.oidc_config) });
 		}
 	}, [config, bifrostConfig]);
 
@@ -103,6 +160,18 @@ export default function SecurityView() {
 			? authConfig.is_enabled !== bifrostConfig?.auth_config?.is_enabled || usernameChanged || passwordChanged
 			: false;
 
+		const serverOIDC = normalizeOIDCConfig(bifrostConfig?.auth_config?.oidc_config);
+		const formOIDC = authConfig.oidc_config ?? emptyOIDCConfig();
+		const oidcChanged =
+			formOIDC.enabled !== serverOIDC.enabled ||
+			formOIDC.issuer !== serverOIDC.issuer ||
+			formOIDC.client_id !== serverOIDC.client_id ||
+			(formOIDC.redirect_uri ?? "") !== (serverOIDC.redirect_uri ?? "") ||
+			(formOIDC.allowed_claim ?? "") !== (serverOIDC.allowed_claim ?? "") ||
+			formOIDC.scopes?.join(",") !== serverOIDC.scopes?.join(",") ||
+			formOIDC.allowed_values?.join(",") !== serverOIDC.allowed_values?.join(",") ||
+			JSON.stringify(formOIDC.client_secret ?? null) !== JSON.stringify(serverOIDC.client_secret ?? null);
+
 		const localRequired = localConfig.required_headers?.slice().sort().join(",");
 		const serverRequired = config.required_headers?.slice().sort().join(",");
 		const requiredChanged = localRequired !== serverRequired;
@@ -123,6 +192,7 @@ export default function SecurityView() {
 			requiredChanged ||
 			whitelistedRoutesChanged ||
 			authChanged ||
+			oidcChanged ||
 			enforceAuthOnInferenceChanged ||
 			allowDirectKeysChanged ||
 			dualCredentialConflictBehaviorChanged ||
@@ -189,6 +259,34 @@ export default function SecurityView() {
 		setAuthConfig((prev) => ({ ...prev, [field]: value }));
 	}, []);
 
+	const handleOIDCSecretChange = useCallback((value: SecretVar) => {
+		setAuthConfig((prev) => ({
+			...prev,
+			oidc_config: { ...(prev.oidc_config ?? emptyOIDCConfig()), client_secret: value },
+		}));
+	}, []);
+
+	const handleOIDCFieldChange = useCallback((field: keyof OIDCConfig, value: string | boolean) => {
+		setAuthConfig((prev) => ({
+			...prev,
+			oidc_config: { ...(prev.oidc_config ?? emptyOIDCConfig()), [field]: value } as OIDCConfig,
+		}));
+	}, []);
+
+	const handleOIDCArrayChange = useCallback((field: "scopes" | "allowed_values", value: string) => {
+		setAuthConfig((prev) => ({
+			...prev,
+			oidc_config: { ...(prev.oidc_config ?? emptyOIDCConfig()), [field]: parseArrayFromText(value) },
+		}));
+	}, []);
+
+	const handleOIDCEnabledChange = useCallback((checked: boolean) => {
+		setAuthConfig((prev) => ({
+			...prev,
+			oidc_config: { ...(prev.oidc_config ?? emptyOIDCConfig()), enabled: checked },
+		}));
+	}, []);
+
 	const handleSave = useCallback(async () => {
 		try {
 			const validation = validateOrigins(localConfig.allowed_origins);
@@ -225,13 +323,19 @@ export default function SecurityView() {
 			}
 			setPasswordError("");
 
+			// Persist auth_config when the password card is shown, or when OIDC SSO is
+			// configured (the SSO card may be the only enabled auth method), or when an
+			// OIDC config already exists that the admin may be turning off.
+			const oidcEnabledRequested = authConfig.oidc_config?.enabled === true;
+			const persistAuth = showPasswordSection || oidcEnabledRequested || !!bifrostConfig?.auth_config?.oidc_config?.enabled;
 			await updateCoreConfig({
 				...bifrostConfig!,
 				client_config: localConfig,
-				...(showPasswordSection
+				...(persistAuth
 					? {
 							auth_config: {
 								...(authConfig.is_enabled && hasUsername && hasPassword ? authConfig : { ...authConfig, is_enabled: false }),
+								oidc_config: oidcFormToPayload(authConfig.oidc_config ?? emptyOIDCConfig()),
 								...(isFirstTimeSetup ? { setup_token: setupToken.trim() } : {}),
 							},
 						}
@@ -247,7 +351,16 @@ export default function SecurityView() {
 				toast.error(message);
 			}
 		}
-	}, [bifrostConfig, localConfig, localValues.vk_rotation_cooldown, authConfig, showPasswordSection, updateCoreConfig, isFirstTimeSetup, setupToken]);
+	}, [
+		bifrostConfig,
+		localConfig,
+		localValues.vk_rotation_cooldown,
+		authConfig,
+		showPasswordSection,
+		updateCoreConfig,
+		isFirstTimeSetup,
+		setupToken,
+	]);
 
 	return (
 		<div className="mx-auto w-full max-w-4xl space-y-4">
@@ -342,6 +455,121 @@ export default function SecurityView() {
 						</div>
 					</div>
 				)}
+				{/* OIDC / SSO login */}
+				<div className="space-y-4 rounded-sm border p-4" data-testid="security-oidc-card">
+					<div className="flex items-center justify-between">
+						<div className="space-y-0.5">
+							<Label htmlFor="oidc-enabled" className="text-sm font-medium">
+								OIDC / SSO login <Badge variant="secondary">BETA</Badge>
+							</Label>
+							<p className="text-muted-foreground text-sm">
+								Let your users sign in with an OpenID Connect provider (Google, Azure AD, Keycloak, …). Register the redirect URI below on
+								your identity provider, then enable SSO here. Password login stays available while both are on, so you are never locked out.
+							</p>
+						</div>
+						<Switch id="oidc-enabled" checked={oidcEnabled} disabled={isFirstTimeSetup} onCheckedChange={handleOIDCEnabledChange} />
+					</div>
+					{isFirstTimeSetup ? (
+						<p className="text-muted-foreground text-xs">
+							SSO can&apos;t be enabled until first-time setup is complete. Create an admin password above first so the dashboard always has
+							an operator account to fall back on.
+						</p>
+					) : null}
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="oidc-issuer">Issuer</Label>
+							<Input
+								id="oidc-issuer"
+								placeholder="https://accounts.google.com"
+								value={oidc.issuer}
+								disabled={oidcDisabled}
+								onChange={(e) => handleOIDCFieldChange("issuer", e.target.value)}
+							/>
+							<p className="text-muted-foreground text-xs">
+								The IdP&apos;s OpenID configuration URL, e.g. https://accounts.google.com or
+								https://login.microsoftonline.com/&lt;tenant&gt;/v2.0.
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="oidc-client-id">Client ID</Label>
+							<Input
+								id="oidc-client-id"
+								placeholder="Enter the client ID from your identity provider"
+								value={oidc.client_id}
+								disabled={oidcDisabled}
+								onChange={(e) => handleOIDCFieldChange("client_id", e.target.value)}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="oidc-client-secret">Client secret</Label>
+							<SecretVarInput
+								id="oidc-client-secret"
+								type="password"
+								placeholder="Enter client secret or env.VAR_NAME"
+								value={oidc.client_secret}
+								disabled={oidcDisabled}
+								onChange={handleOIDCSecretChange}
+							/>
+							<p className="text-muted-foreground text-xs">
+								Public IdPs that don&apos;t issue client secrets (Google for web apps, some OIDC test servers) can leave this blank.
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="oidc-scopes">Additional scopes</Label>
+							<Textarea
+								id="oidc-scopes"
+								placeholder="email, profile"
+								value={oidc.scopes?.join(", ") ?? ""}
+								disabled={oidcDisabled}
+								onChange={(e) => handleOIDCArrayChange("scopes", e.target.value)}
+							/>
+							<p className="text-muted-foreground text-xs">
+								Comma-separated. openid is always requested. Include any scopes that carry the claim you want to admit users on below.
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="oidc-redirect-uri">Redirect URI</Label>
+							<Input
+								id="oidc-redirect-uri"
+								placeholder={`${window.location.origin}/api/session/oidc/callback`}
+								value={oidc.redirect_uri ?? ""}
+								disabled={oidcDisabled}
+								onChange={(e) => handleOIDCFieldChange("redirect_uri", e.target.value)}
+							/>
+							<p className="text-muted-foreground text-xs">
+								The callback this server receives after the IdP redirects back. Register the same URI on your IdP. Defaults to{" "}
+								{window.location.origin}/api/session/oidc/callback when blank.
+							</p>
+						</div>
+						<div className="grid gap-4 sm:grid-cols-2">
+							<div className="space-y-2">
+								<Label htmlFor="oidc-allowed-claim">Login allow-list claim</Label>
+								<Input
+									id="oidc-allowed-claim"
+									placeholder="roles"
+									value={oidc.allowed_claim ?? ""}
+									disabled={oidcDisabled}
+									onChange={(e) => handleOIDCFieldChange("allowed_claim", e.target.value)}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="oidc-allowed-values">Allowed values</Label>
+								<Textarea
+									id="oidc-allowed-values"
+									placeholder="admin, analyst"
+									value={oidc.allowed_values?.join(", ") ?? ""}
+									disabled={oidcDisabled}
+									onChange={(e) => handleOIDCArrayChange("allowed_values", e.target.value)}
+								/>
+							</div>
+						</div>
+						<p className="text-muted-foreground text-xs">
+							Admission is controlled by a single claim: fill in the claim name and the values that may sign in. Leaving both blank lets
+							every user your IdP authenticates in — convenient for a trusted internal IdP, but confirm that is what you want before going
+							live.
+						</p>
+					</div>
+				</div>
 				{/* Enable Auth on Inference */}
 				<div className="flex items-center justify-between space-x-2 rounded-sm border p-4">
 					<div className="space-y-0.5">

@@ -6743,11 +6743,28 @@ func (s *RDBConfigStore) GetAuthConfig(ctx context.Context) (*AuthConfig, error)
 	if username == nil || password == nil {
 		return nil, nil
 	}
-	return &AuthConfig{
+	authCfg := &AuthConfig{
 		AdminUserName: schemas.NewSecretVar(*username),
 		AdminPassword: schemas.NewSecretVar(*password),
 		IsEnabled:     isEnabled,
-	}, nil
+	}
+	if oidcJSON, err := s.getGovernanceConfigString(ctx, tables.ConfigOIDCConfigKey); err != nil {
+		return nil, err
+	} else if oidcJSON != nil {
+		var oidcConfig OIDCConfig
+		if err := json.Unmarshal([]byte(*oidcJSON), &oidcConfig); err != nil {
+			return nil, fmt.Errorf("failed to parse oidc config: %w", err)
+		}
+		if oidcConfig.ClientSecret != nil {
+			decrypted, err := decryptOIDCSecret(oidcConfig.ClientSecret)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt oidc client secret: %w", err)
+			}
+			oidcConfig.ClientSecret = decrypted
+		}
+		authCfg.OIDC = &oidcConfig
+	}
+	return authCfg, nil
 }
 
 // UpdateAuthConfig updates the auth configuration in the database.
@@ -6771,8 +6788,81 @@ func (s *RDBConfigStore) UpdateAuthConfig(ctx context.Context, config *AuthConfi
 		}).Error; err != nil {
 			return err
 		}
+		// OIDC config lives on the same auth config: write it when configured,
+		// otherwise remove any stale row so a disabled OIDC never lingers.
+		if config.OIDC != nil && (config.OIDC.Enabled || config.OIDC.Issuer != "" || config.OIDC.ClientID != "") {
+			oidcToStore := *config.OIDC
+			if oidcToStore.ClientSecret != nil {
+				encrypted, err := encryptOIDCSecret(oidcToStore.ClientSecret)
+				if err != nil {
+					return fmt.Errorf("failed to encrypt oidc client secret: %w", err)
+				}
+				oidcToStore.ClientSecret = encrypted
+			}
+			raw, err := json.Marshal(oidcToStore)
+			if err != nil {
+				return fmt.Errorf("failed to marshal oidc config: %w", err)
+			}
+			if err := tx.Save(&tables.TableGovernanceConfig{
+				Key:   tables.ConfigOIDCConfigKey,
+				Value: string(raw),
+			}).Error; err != nil {
+				return err
+			}
+		} else {
+			if err := tx.Where("key = ?", tables.ConfigOIDCConfigKey).Delete(&tables.TableGovernanceConfig{}).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
+}
+
+// getGovernanceConfigString reads a single governance_configs row value by key,
+// returning (nil, nil) when no row exists.
+func (s *RDBConfigStore) getGovernanceConfigString(ctx context.Context, key string) (*string, error) {
+	var value string
+	if err := s.DB().WithContext(ctx).First(&tables.TableGovernanceConfig{}, "key = ?", key).Select("value").Scan(&value).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &value, nil
+}
+
+// oidcSecretEncPrefix marks a client secret that was encrypted with the
+// framework encrypt key before being stored in the oidc_config JSON row.
+const oidcSecretEncPrefix = "enc:"
+
+// encryptOIDCSecret encrypts the OIDC client secret value (when encryption is
+// enabled) so it is not persisted in plaintext. Secrets sourced from an
+// external ref keep their ref and are left untouched.
+func encryptOIDCSecret(sv *schemas.SecretVar) (*schemas.SecretVar, error) {
+	if sv == nil || sv.GetValue() == "" || !encrypt.IsEnabled() {
+		return sv, nil
+	}
+	enc, err := encrypt.Encrypt(sv.GetValue())
+	if err != nil {
+		return nil, err
+	}
+	return &schemas.SecretVar{Val: oidcSecretEncPrefix + enc}, nil
+}
+
+// decryptOIDCSecret reverses encryptOIDCSecret on read.
+func decryptOIDCSecret(sv *schemas.SecretVar) (*schemas.SecretVar, error) {
+	if sv == nil || sv.GetValue() == "" {
+		return sv, nil
+	}
+	val := sv.GetValue()
+	if !encrypt.IsEnabled() || !strings.HasPrefix(val, oidcSecretEncPrefix) {
+		return sv, nil
+	}
+	dec, err := encrypt.Decrypt(strings.TrimPrefix(val, oidcSecretEncPrefix))
+	if err != nil {
+		return nil, err
+	}
+	return &schemas.SecretVar{Val: dec}, nil
 }
 
 // GetProxyConfig retrieves the proxy configuration from the database.

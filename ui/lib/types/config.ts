@@ -570,11 +570,26 @@ export const LIVE_MODELS_SYNC_DISABLED = 0;
 /** Server-side floor for a non-zero live models sync interval, in seconds. */
 export const MIN_LIVE_MODELS_SYNC_INTERVAL = 60;
 
+// OIDC / SSO login configuration. Sent as part of the auth_config object in
+// PUT /api/config; the client_secret mirrors SecretVar handling (redacted on
+// read, preserved when the placeholder is sent back unchanged).
+export interface OIDCConfig {
+	enabled: boolean;
+	issuer: string;
+	client_id: string;
+	client_secret: SecretVar;
+	scopes?: string[];
+	redirect_uri?: string;
+	allowed_claim?: string;
+	allowed_values?: string[];
+}
+
 // Auth config
 export interface AuthConfig {
 	admin_username: SecretVar;
 	admin_password: SecretVar;
 	is_enabled: boolean;
+	oidc_config?: OIDCConfig;
 	/** Write-only: required only when this PUT request creates the very first admin account
 	 *  (no admin account exists yet). Provided by the operator via setup_token in config.json
 	 *  or the BIFROST_SETUP_TOKEN env var. Never persisted or returned by GET /api/config. */

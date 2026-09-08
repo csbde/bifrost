@@ -1936,11 +1936,47 @@ func GenerateFrameworkConfigHash(pricingURL *string, modelParametersURL *string,
 	return hex.EncodeToString(h[:]), nil
 }
 
+// OIDCConfig configures OpenID Connect (OIDC) login for the dashboard.
+// When Enabled, users can authenticate against the external identity
+// provider and obtain a normal Bifrost dashboard session.
+type OIDCConfig struct {
+	Enabled       bool               `json:"enabled"`
+	Issuer        string             `json:"issuer"`          // e.g. https://keycloak.example.com/realms/bifrost
+	ClientID      string             `json:"client_id"`       // OIDC client_id registered at the IdP
+	ClientSecret  *schemas.SecretVar `json:"client_secret"`   // confidential client secret (stored encrypted)
+	Scopes        []string           `json:"scopes,omitempty"` // extra scopes beyond [openid email profile]
+	RedirectURI   string             `json:"redirect_uri,omitempty"` // optional; derived from request host when empty
+	AllowedClaim  string             `json:"allowed_claim,omitempty"` // IdP claim whose values are matched against AllowedValues (e.g. "groups")
+	AllowedValues []string           `json:"allowed_values,omitempty"` // allow-list for AllowedClaim; empty = allow any authenticated user
+}
+
 // AuthConfig represents configured auth config for Bifrost dashboard
 type AuthConfig struct {
 	AdminUserName *schemas.SecretVar `json:"admin_username"`
 	AdminPassword *schemas.SecretVar `json:"admin_password"`
 	IsEnabled     bool               `json:"is_enabled"`
+	// OIDC is the optional OIDC login configuration. When non-nil and Enabled,
+	// users may sign in through the configured identity provider in addition to
+	// (or, if IsEnabled is false, instead of) username/password.
+	OIDC *OIDCConfig `json:"oidc_config,omitempty"`
+}
+
+// PasswordEnabled reports whether username/password dashboard auth is enabled.
+func (a *AuthConfig) PasswordEnabled() bool {
+	return a != nil && a.IsEnabled
+}
+
+// OIDCEnabled reports whether OIDC dashboard login is configured and enabled.
+func (a *AuthConfig) OIDCEnabled() bool {
+	return a != nil && a.OIDC != nil && a.OIDC.Enabled
+}
+
+// AnyAuthEnabled reports whether the dashboard requires authentication through
+// at least one mechanism (password or OIDC). This is the single gate used by
+// the auth middleware and the is-auth-enabled endpoint so that enabling OIDC
+// alone (without a password) still protects the dashboard.
+func (a *AuthConfig) AnyAuthEnabled() bool {
+	return a.PasswordEnabled() || a.OIDCEnabled()
 }
 
 // ConfigMap maps provider names to their configurations.

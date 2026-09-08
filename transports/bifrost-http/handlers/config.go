@@ -195,6 +195,7 @@ func (h *ConfigHandler) getConfig(ctx *fasthttp.RequestCtx) {
 				"admin_username": authConfig.AdminUserName,
 				"admin_password": passwordSecretVar,
 				"is_enabled":     authConfig.IsEnabled,
+				"oidc_config":    oidcConfigForResponse(authConfig.OIDC),
 			}
 		}
 		// When authConfig is nil, no admin account has been created yet: leave
@@ -207,6 +208,7 @@ func (h *ConfigHandler) getConfig(ctx *fasthttp.RequestCtx) {
 			"admin_username": &schemas.SecretVar{},
 			"admin_password": &schemas.SecretVar{},
 			"is_enabled":     false,
+			"oidc_config":    oidcConfigForResponse(nil),
 		}
 	}
 	mapConfig["is_db_connected"] = h.store.ConfigStore != nil
@@ -247,6 +249,45 @@ func (h *ConfigHandler) getConfig(ctx *fasthttp.RequestCtx) {
 		}
 	}
 	SendJSON(ctx, mapConfig)
+}
+
+// oidcConfigForResponse builds the client-facing OIDC config object for GET
+// /api/config, redacting the client secret the same way admin_password is
+// redacted: an env/vault-sourced secret keeps its reference (value cleared),
+// a literal secret is masked with <redacted>, and a missing secret stays empty
+// so the UI can tell "not configured" apart from a redacted stored value.
+func oidcConfigForResponse(oidc *configstore.OIDCConfig) map[string]any {
+	if oidc == nil {
+		return map[string]any{
+			"enabled":        false,
+			"issuer":         "",
+			"client_id":      "",
+			"client_secret":  &schemas.SecretVar{},
+			"scopes":         []string{},
+			"redirect_uri":   "",
+			"allowed_claim":  "",
+			"allowed_values": []string{},
+		}
+	}
+	var secretVar *schemas.SecretVar
+	switch {
+	case oidc.ClientSecret == nil:
+		secretVar = &schemas.SecretVar{}
+	case oidc.ClientSecret.IsFromSecret():
+		secretVar = oidc.ClientSecret.FullyRedacted()
+	default:
+		secretVar = &schemas.SecretVar{Val: "<redacted>"}
+	}
+	return map[string]any{
+		"enabled":        oidc.Enabled,
+		"issuer":         oidc.Issuer,
+		"client_id":      oidc.ClientID,
+		"client_secret":  secretVar,
+		"scopes":         oidc.Scopes,
+		"redirect_uri":   oidc.RedirectURI,
+		"allowed_claim":  oidc.AllowedClaim,
+		"allowed_values": oidc.AllowedValues,
+	}
 }
 
 // updateMetadata handles POST /api/config/metadata - merges a JSON object of
@@ -900,6 +941,23 @@ func (h *ConfigHandler) updateConfig(ctx *fasthttp.RequestCtx) {
 				usernameChanged ||
 				passwordChanged {
 				authChanged = true
+			}
+		}
+
+		// OIDC round-trip: a redacted/empty client secret placeholder from the UI
+		// must not overwrite the stored secret (mirror the admin_password handling
+		// above), and an auth_config update that omits oidc_config entirely must
+		// not silently wipe the stored SSO config.
+		if authConfig != nil && authConfig.OIDC != nil {
+			if payload.AuthConfig.OIDC == nil {
+				payload.AuthConfig.OIDC = authConfig.OIDC
+			} else if payload.AuthConfig.OIDC.ClientSecret != nil &&
+				payload.AuthConfig.OIDC.ClientSecret.ShouldPreserveStored() {
+				if authConfig.OIDC.ClientSecret != nil {
+					payload.AuthConfig.OIDC.ClientSecret = authConfig.OIDC.ClientSecret
+				} else {
+					payload.AuthConfig.OIDC.ClientSecret = nil
+				}
 			}
 		}
 

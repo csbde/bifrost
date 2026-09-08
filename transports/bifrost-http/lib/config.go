@@ -4557,6 +4557,7 @@ func loadAuthConfig(ctx context.Context, config *Config, configData *ConfigData)
 				AdminUserName: authConfig.AdminUserName,
 				AdminPassword: preserveSecretVar(authConfig.AdminPassword, dbAuthConfig.AdminPassword.GetValue()),
 				IsEnabled:     authConfig.IsEnabled,
+				OIDC:          mergeOIDCConfig(authConfig, dbAuthConfig),
 			}
 			return
 		}
@@ -4586,11 +4587,27 @@ func loadAuthConfig(ctx context.Context, config *Config, configData *ConfigData)
 		AdminUserName: authConfig.AdminUserName,
 		AdminPassword: preserveSecretVar(authConfig.AdminPassword, hashedPassword),
 		IsEnabled:     authConfig.IsEnabled,
+		OIDC:          mergeOIDCConfig(authConfig, dbAuthConfig),
 	}
 	// Persist to config store
 	if err := config.ConfigStore.UpdateAuthConfig(ctx, config.GovernanceConfig.AuthConfig); err != nil {
 		logger.Warn("failed to update auth config: %v", err)
 	}
+}
+
+// mergeOIDCConfig resolves the effective OIDC configuration when reconciling a
+// file-sourced auth config with what is already in the database. File config
+// takes precedence, but if the file omits OIDC (the common case, since OIDC is
+// configured through the dashboard), we keep the DB-stored OIDC so a restart
+// that re-applies the file doesn't wipe previously saved OIDC settings.
+func mergeOIDCConfig(fileCfg, dbCfg *configstore.AuthConfig) *configstore.OIDCConfig {
+	if fileCfg != nil && fileCfg.OIDC != nil {
+		return fileCfg.OIDC
+	}
+	if dbCfg != nil {
+		return dbCfg.OIDC
+	}
+	return nil
 }
 
 // loadPlugins loads and merges plugins from file

@@ -1097,6 +1097,14 @@ func (m *AuthMiddleware) APIMiddleware() schemas.BifrostHTTPMiddleware {
 		// Idempotent: the handler clears the cookie and returns 200 whether or
 		// not a session token is present, so a repeat logout must not 401 here.
 		"/api/session/logout",
+		// OIDC SSO: unauthenticated users start the flow at /oidc/login and the
+		// IdP redirects back to /oidc/callback — both must be reachable without a
+		// session (the browser hits callback with no cookie context).
+		"/api/session/oidc/login",
+		"/api/session/oidc/callback",
+		// The login page probes this unauthenticated to decide whether to show the
+		// SSO entry point, so it must be publicly reachable.
+		"/api/auth/type",
 		"/api/oauth/callback",
 		"/health",
 		"/login",
@@ -1164,7 +1172,7 @@ func (m *AuthMiddleware) middleware(shouldSkip func(*configstore.AuthConfig, str
 				return
 			}
 			authConfig := m.authConfig.Load()
-			if authConfig == nil || !authConfig.IsEnabled {
+			if authConfig == nil || !authConfig.AnyAuthEnabled() {
 				// logger.Debug("auth middleware is disabled because auth config is not present or not enabled")
 				ctx.SetUserValue(schemas.BifrostContextKeySessionToken, "")
 				// Mark as local admin so downstream RBAC bypasses cleanly when

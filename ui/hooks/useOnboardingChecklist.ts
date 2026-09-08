@@ -71,6 +71,10 @@ export function useOnboardingChecklist({ skip = false }: { skip?: boolean } = {}
 	// are never set on these deployments and would strand this step forever.
 	// Mirrors the server's own gate: SCIMConfig != nil && SCIMConfig.Enabled.
 	const ssoGatesDashboard = IS_ENTERPRISE && (scimProviders?.some((provider) => provider.enabled) ?? false);
+	// OSS OIDC login also satisfies dashboard auth: when auth_config.oidc_config
+	// is enabled the backend accepts /api/session/oidc/* logins, so an OIDC-only
+	// deployment has dashboard auth without admin_username/admin_password.
+	const oidcEnabled = !!authConfig?.oidc_config?.enabled;
 
 	const steps: OnboardingStep[] = useMemo(() => {
 		// Order: 1) Security, 2) Provider Setup, 3) Everything Else.
@@ -91,6 +95,7 @@ export function useOnboardingChecklist({ skip = false }: { skip?: boolean } = {}
 				section: "Security",
 				complete:
 					ssoGatesDashboard ||
+					oidcEnabled ||
 					(!!authConfig?.is_enabled && authValueSet(authConfig?.admin_username) && authValueSet(authConfig?.admin_password)),
 			},
 			{
@@ -134,7 +139,7 @@ export function useOnboardingChecklist({ skip = false }: { skip?: boolean } = {}
 				]
 			: [];
 		return [...common, ...enterprise];
-	}, [allKeys, clientConfig, authConfig, ssoGatesDashboard, scimProviders, modelConfigsResponse, vksResponse]);
+	}, [allKeys, clientConfig, authConfig, ssoGatesDashboard, oidcEnabled, scimProviders, modelConfigsResponse, vksResponse]);
 
 	return { bifrostConfig, steps, skippedIds, checklistReady, isDismissedForAll };
 }

@@ -37,6 +37,12 @@ func (h *SessionHandler) RegisterRoutes(r *router.Router, middlewares ...schemas
 	r.POST("/api/session/logout", lib.ChainMiddlewares(h.logout, middlewares...))
 	r.GET("/api/session/is-auth-enabled", lib.ChainMiddlewares(h.isAuthEnabled, middlewares...))
 	r.POST("/api/session/ws-ticket", lib.ChainMiddlewares(h.issueWSTicket, middlewares...))
+	// OIDC SSO login: GET /api/session/oidc/login redirects to the IdP; the IdP
+	// redirects back to GET /api/session/oidc/callback which establishes the session.
+	r.GET("/api/session/oidc/login", lib.ChainMiddlewares(h.oidcLogin, middlewares...))
+	r.GET("/api/session/oidc/callback", lib.ChainMiddlewares(h.oidcCallback, middlewares...))
+	// Auth type is probed by the login page before authentication, so it must be public.
+	r.GET("/api/auth/type", lib.ChainMiddlewares(h.authType, middlewares...))
 }
 
 // isAuthEnabled handles GET /api/session/is-auth-enabled - Check if auth is enabled
@@ -78,18 +84,46 @@ func (h *SessionHandler) isAuthEnabled(ctx *fasthttp.RequestCtx) {
 		}
 	}
 	SendJSON(ctx, map[string]any{
-		"is_auth_enabled": authConfig.IsEnabled,
+		"is_auth_enabled": authConfig.AnyAuthEnabled(),
 		"has_valid_token": hasValidToken,
-		"auth_type":       dashboardAuthType(authConfig.IsEnabled),
+		"auth_type":       dashboardAuthType(authConfig),
+		"oidc_enabled":    authConfig.OIDCEnabled(),
 	})
 }
 
 // dashboardAuthType reports the dashboard session auth mode for frontend flows.
-func dashboardAuthType(isEnabled bool) string {
-	if isEnabled {
+func dashboardAuthType(authConfig *configstore.AuthConfig) string {
+	switch {
+	case authConfig == nil:
+		return "none"
+	case authConfig.OIDCEnabled() && !authConfig.PasswordEnabled():
+		return "sso"
+	default:
 		return "password"
 	}
-	return "none"
+}
+
+// authType handles GET /api/auth/type - reports the dashboard authentication mode
+// and whether OIDC SSO is enabled. Used by the login page to decide whether to
+// show the SSO entry point / a "restart required" notice.
+func (h *SessionHandler) authType(ctx *fasthttp.RequestCtx) {
+	if h.configStore == nil {
+		SendJSON(ctx, map[string]any{"type": "none", "oidc_enabled": false})
+		return
+	}
+	authConfig, err := h.configStore.GetAuthConfig(ctx)
+	if err != nil {
+		SendError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("Failed to get auth config: %v", err))
+		return
+	}
+	if authConfig == nil {
+		SendJSON(ctx, map[string]any{"type": "none", "oidc_enabled": false})
+		return
+	}
+	SendJSON(ctx, map[string]any{
+		"type":         dashboardAuthType(authConfig),
+		"oidc_enabled": authConfig.OIDCEnabled(),
+	})
 }
 
 // login handles POST /api/session/login - Login a user
@@ -136,6 +170,20 @@ func (h *SessionHandler) login(ctx *fasthttp.RequestCtx) {
 	}
 
 	// Creating a new session
+	if _, err := h.issueSession(ctx); err != nil {
+		SendError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("Failed to create session: %v", err))
+		return
+	}
+
+	SendJSON(ctx, map[string]any{
+		"message": "Login successful",
+	})
+}
+
+// issueSession creates a new dashboard session and sets the HTTP-only session
+// cookie. It is shared by the password login flow and the OIDC callback so both
+// produce identical bifrost sessions.
+func (h *SessionHandler) issueSession(ctx *fasthttp.RequestCtx) (string, error) {
 	token := uuid.New().String()
 	session := &tables.SessionsTable{
 		Token:     token,
@@ -143,10 +191,8 @@ func (h *SessionHandler) login(ctx *fasthttp.RequestCtx) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	err = h.configStore.CreateSession(ctx, session)
-	if err != nil {
-		SendError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("Failed to create session: %v", err))
-		return
+	if err := h.configStore.CreateSession(ctx, session); err != nil {
+		return "", err
 	}
 
 	// Setting cookies
@@ -163,10 +209,7 @@ func (h *SessionHandler) login(ctx *fasthttp.RequestCtx) {
 		cookie.SetSecure(true)
 	}
 	ctx.Response.Header.SetCookie(cookie)
-
-	SendJSON(ctx, map[string]any{
-		"message": "Login successful",
-	})
+	return token, nil
 }
 
 // logout handles POST /api/session/logout - Logout a user

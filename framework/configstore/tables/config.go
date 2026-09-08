@@ -6,7 +6,11 @@ const (
 	ConfigAdminUsernameKey = "admin_username"
 	ConfigAdminPasswordKey = "admin_password"
 	ConfigIsAuthEnabledKey = "is_auth_enabled"
-	ConfigProxyKey         = "proxy_config"
+	// ConfigOIDCConfigKey stores the JSON-serialized OIDC login configuration
+	// (issuer, client credentials, claim allow-list) in the governance config
+	// store, alongside the password auth rows above.
+	ConfigOIDCConfigKey = "oidc_config"
+	ConfigProxyKey       = "proxy_config"
 	// ConfigComplexityAnalyzerConfigKey stores the persisted analyzer config JSON.
 	//
 	// This row is also the rollback-compatibility surface: it is written in a
