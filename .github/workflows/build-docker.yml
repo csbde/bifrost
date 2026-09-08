@@ -47,6 +47,9 @@ jobs:
           context: .
           file: transports/Dockerfile.local
           push: true
+          # 阿里云 ACR 兼容性
+          provenance: false
+          sbom: false
           build-args: |
             VERSION=${{ steps.meta.outputs.short_sha }}
           tags: |
