@@ -74,6 +74,7 @@ export interface AliasConfig {
 	// Replicate overrides
 	use_deployments_endpoint?: boolean;
 	use_anthropic_endpoints?: boolean;
+	use_openai_endpoints?: boolean;
 }
 
 // AzureKeyConfig matching Go's schemas.AzureKeyConfig
@@ -268,10 +269,15 @@ export interface ModelProviderKey {
 	value?: SecretVar;
 	models?: string[];
 	blacklisted_models?: string[];
+	/** RE2 patterns admitting models by name shape, alongside `models`. */
+	models_patterns?: string[];
+	/** RE2 patterns blocking models by name shape, alongside `blacklisted_models`. */
+	blacklisted_models_patterns?: string[];
 	weight: number;
 	enabled?: boolean;
 	use_for_batch_api?: boolean;
 	use_anthropic_endpoints?: boolean;
+	use_openai_endpoints?: boolean;
 	aliases?: Record<string, AliasConfig>;
 	azure_key_config?: AzureKeyConfig;
 	vertex_key_config?: VertexKeyConfig;
@@ -298,6 +304,8 @@ export const DefaultModelProviderKey: ModelProviderKey = {
 	},
 	models: [],
 	blacklisted_models: [],
+	models_patterns: [],
+	blacklisted_models_patterns: [],
 	weight: 1.0,
 	enabled: true,
 };

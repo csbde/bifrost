@@ -1,3 +1,1 @@
-- feat: route Azure DeepSeek Responses requests from coding harnesses to chat completions, fall back for models without a Responses endpoint, and gate it on the `compat.azure_deepseek` toggle (#6326, #6737)
-- feat: log every dropped parameter and request-type conversion as a structured per-request entry (#6634)
-- feat: persist the served model from the provider response (#6693)
+- fix: removed the namespace-tool flattening that ran under `should_convert_params`; it spliced nested functions into the top-level list without a namespace prefix, so two namespaces sharing a function name produced duplicate tool names and an upstream 400. Flattening now lives in Bifrost core for every provider whose wire lacks the `namespace` type, with unique `<namespace>__<function>` names and response-side mapping back. `should_convert_params` is still accepted so existing configs load, but it no longer changes any request (#7048)

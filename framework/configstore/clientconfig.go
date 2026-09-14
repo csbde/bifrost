@@ -543,12 +543,14 @@ func (p *ProviderConfig) Redacted() *ProviderConfig {
 			blacklistedModels = []string{} // Match models: empty JSON array, not null
 		}
 		redactedConfig.Keys[i] = schemas.Key{
-			ID:                key.ID,
-			Name:              key.Name,
-			Models:            models,
-			BlacklistedModels: blacklistedModels,
-			Weight:            key.Weight,
-			ConfigHash:        key.ConfigHash,
+			ID:                        key.ID,
+			Name:                      key.Name,
+			Models:                    models,
+			BlacklistedModels:         blacklistedModels,
+			ModelsPatterns:            key.ModelsPatterns,
+			BlacklistedModelsPatterns: key.BlacklistedModelsPatterns,
+			Weight:                    key.Weight,
+			ConfigHash:                key.ConfigHash,
 		}
 		if key.Enabled != nil {
 			enabled := *key.Enabled
@@ -570,6 +572,12 @@ func (p *ProviderConfig) Redacted() *ProviderConfig {
 		} else {
 			redactedConfig.Keys[i].UseAnthropicEndpoints = new(false)
 		}
+		// Add back use openai endpoints
+		if key.UseOpenAIEndpoints != nil {
+			redactedConfig.Keys[i].UseOpenAIEndpoints = key.UseOpenAIEndpoints
+		} else {
+			redactedConfig.Keys[i].UseOpenAIEndpoints = new(false)
+		}
 
 		// Add model discovery status and error
 		redactedConfig.Keys[i].Status = key.Status
@@ -578,11 +586,8 @@ func (p *ProviderConfig) Redacted() *ProviderConfig {
 		// Redact Azure key config if present
 		if key.AzureKeyConfig != nil {
 			azureConfig := &schemas.AzureKeyConfig{}
-			if key.AzureKeyConfig.Endpoint.IsFromSecret() {
-				azureConfig.Endpoint = *key.AzureKeyConfig.Endpoint.Redacted()
-			} else {
-				azureConfig.Endpoint = key.AzureKeyConfig.Endpoint
-			}
+			// The endpoint is a hostname, not a credential — surface it in plaintext.
+			azureConfig.Endpoint = *key.AzureKeyConfig.Endpoint.RedactedIfSecret()
 			if key.AzureKeyConfig.ClientID != nil {
 				azureConfig.ClientID = key.AzureKeyConfig.ClientID.Redacted()
 			}
@@ -603,7 +608,8 @@ func (p *ProviderConfig) Redacted() *ProviderConfig {
 			vertexConfig := &schemas.VertexKeyConfig{}
 			vertexConfig.ProjectID = *key.VertexKeyConfig.ProjectID.Redacted()
 			vertexConfig.ProjectNumber = *key.VertexKeyConfig.ProjectNumber.Redacted()
-			vertexConfig.Region = *key.VertexKeyConfig.Region.Redacted()
+			// The region is a public identifier, not a credential — surface it in plaintext.
+			vertexConfig.Region = *key.VertexKeyConfig.Region.RedactedIfSecret()
 			vertexConfig.AuthCredentials = *key.VertexKeyConfig.AuthCredentials.Redacted()
 			vertexConfig.ForceSingleRegion = key.VertexKeyConfig.ForceSingleRegion
 			redactedConfig.Keys[i].VertexKeyConfig = vertexConfig
@@ -617,8 +623,9 @@ func (p *ProviderConfig) Redacted() *ProviderConfig {
 			if key.BedrockKeyConfig.SessionToken != nil {
 				bedrockConfig.SessionToken = key.BedrockKeyConfig.SessionToken.Redacted()
 			}
+			// The region is a public identifier, not a credential — surface it in plaintext.
 			if key.BedrockKeyConfig.Region != nil {
-				bedrockConfig.Region = key.BedrockKeyConfig.Region.Redacted()
+				bedrockConfig.Region = key.BedrockKeyConfig.Region.RedactedIfSecret()
 			}
 			if key.BedrockKeyConfig.ARN != nil {
 				bedrockConfig.ARN = key.BedrockKeyConfig.ARN.Redacted()
@@ -658,8 +665,9 @@ func (p *ProviderConfig) Redacted() *ProviderConfig {
 			if key.BedrockMantleKeyConfig.SessionToken != nil {
 				mantleConfig.SessionToken = key.BedrockMantleKeyConfig.SessionToken.Redacted()
 			}
+			// The region is a public identifier, not a credential — surface it in plaintext.
 			if key.BedrockMantleKeyConfig.Region != nil {
-				mantleConfig.Region = key.BedrockMantleKeyConfig.Region.Redacted()
+				mantleConfig.Region = key.BedrockMantleKeyConfig.Region.RedactedIfSecret()
 			}
 			if key.BedrockMantleKeyConfig.RoleARN != nil {
 				mantleConfig.RoleARN = key.BedrockMantleKeyConfig.RoleARN.Redacted()
@@ -685,7 +693,8 @@ func (p *ProviderConfig) Redacted() *ProviderConfig {
 			vllmConfig := &schemas.VLLMKeyConfig{
 				ModelName: key.VLLMKeyConfig.ModelName,
 			}
-			vllmConfig.URL = *key.VLLMKeyConfig.URL.Redacted()
+			// The URL is a service address, not a credential — surface it in plaintext.
+			vllmConfig.URL = *key.VLLMKeyConfig.URL.RedactedIfSecret()
 			redactedConfig.Keys[i].VLLMKeyConfig = vllmConfig
 		}
 
@@ -698,13 +707,15 @@ func (p *ProviderConfig) Redacted() *ProviderConfig {
 
 		if key.OllamaKeyConfig != nil {
 			ollamaConfig := &schemas.OllamaKeyConfig{}
-			ollamaConfig.URL = *key.OllamaKeyConfig.URL.Redacted()
+			// The URL is a service address, not a credential — surface it in plaintext.
+			ollamaConfig.URL = *key.OllamaKeyConfig.URL.RedactedIfSecret()
 			redactedConfig.Keys[i].OllamaKeyConfig = ollamaConfig
 		}
 
 		if key.SGLKeyConfig != nil {
 			sglConfig := &schemas.SGLKeyConfig{}
-			sglConfig.URL = *key.SGLKeyConfig.URL.Redacted()
+			// The URL is a service address, not a credential — surface it in plaintext.
+			sglConfig.URL = *key.SGLKeyConfig.URL.RedactedIfSecret()
 			redactedConfig.Keys[i].SGLKeyConfig = sglConfig
 		}
 
@@ -716,11 +727,7 @@ func (p *ProviderConfig) Redacted() *ProviderConfig {
 			}
 			// The workspace URL is a hostname, not a credential — surface it in
 			// plaintext so the UI can round-trip it, mirroring the Azure endpoint.
-			if key.DatabricksKeyConfig.WorkspaceURL.IsFromSecret() {
-				databricksConfig.WorkspaceURL = *key.DatabricksKeyConfig.WorkspaceURL.Redacted()
-			} else {
-				databricksConfig.WorkspaceURL = key.DatabricksKeyConfig.WorkspaceURL
-			}
+			databricksConfig.WorkspaceURL = *key.DatabricksKeyConfig.WorkspaceURL.RedactedIfSecret()
 			if key.DatabricksKeyConfig.ClientID != nil {
 				databricksConfig.ClientID = key.DatabricksKeyConfig.ClientID.Redacted()
 			}
@@ -862,6 +869,29 @@ func GenerateKeyHash(key schemas.Key) (string, error) {
 		hash.Write([]byte("blacklistedModels:"))
 		hash.Write(data)
 	}
+	// Hash the pattern twins only when set, so keys without patterns keep their hash.
+	if len(key.ModelsPatterns) > 0 {
+		sortedPatterns := make([]string, len(key.ModelsPatterns))
+		copy(sortedPatterns, key.ModelsPatterns)
+		sort.Strings(sortedPatterns)
+		data, err := sonic.Marshal(sortedPatterns)
+		if err != nil {
+			return "", err
+		}
+		hash.Write([]byte("modelsPatterns:"))
+		hash.Write(data)
+	}
+	if len(key.BlacklistedModelsPatterns) > 0 {
+		sortedPatterns := make([]string, len(key.BlacklistedModelsPatterns))
+		copy(sortedPatterns, key.BlacklistedModelsPatterns)
+		sort.Strings(sortedPatterns)
+		data, err := sonic.Marshal(sortedPatterns)
+		if err != nil {
+			return "", err
+		}
+		hash.Write([]byte("blacklistedModelsPatterns:"))
+		hash.Write(data)
+	}
 	// Hash Weight
 	data, err := sonic.Marshal(key.Weight)
 	if err != nil {
@@ -1000,9 +1030,12 @@ type VirtualKeyProviderConfigHashInput struct {
 	Weight            *float64
 	AllowedModels     []string
 	BlacklistedModels []string
-	AllowAllKeys      bool
-	RateLimitID       *string
-	KeyIDs            []string // Only key IDs, not full key objects
+	// Pattern twins, omitted from the hash when empty so existing hashes hold.
+	AllowedModelsPatterns     []string `json:",omitempty"`
+	BlacklistedModelsPatterns []string `json:",omitempty"`
+	AllowAllKeys              bool
+	RateLimitID               *string
+	KeyIDs                    []string // Only key IDs, not full key objects
 }
 
 // VirtualKeyMCPConfigHashInput represents MCP config fields for hashing
@@ -1098,14 +1131,26 @@ func GenerateVirtualKeyHash(vk tables.TableVirtualKey) (string, error) {
 			sortedBlacklistedModels := make([]string, len(pc.BlacklistedModels))
 			copy(sortedBlacklistedModels, pc.BlacklistedModels)
 			sort.Strings(sortedBlacklistedModels)
+
+			var sortedAllowedPatterns, sortedBlacklistedPatterns []string
+			if len(pc.AllowedModelsPatterns) > 0 {
+				sortedAllowedPatterns = append([]string(nil), pc.AllowedModelsPatterns...)
+				sort.Strings(sortedAllowedPatterns)
+			}
+			if len(pc.BlacklistedModelsPatterns) > 0 {
+				sortedBlacklistedPatterns = append([]string(nil), pc.BlacklistedModelsPatterns...)
+				sort.Strings(sortedBlacklistedPatterns)
+			}
 			providerConfigsForHash[i] = VirtualKeyProviderConfigHashInput{
-				Provider:          pc.Provider,
-				Weight:            pc.Weight,
-				AllowedModels:     sortedAllowedModels,
-				BlacklistedModels: sortedBlacklistedModels,
-				AllowAllKeys:      pc.AllowAllKeys,
-				RateLimitID:       pc.RateLimitID,
-				KeyIDs:            keyIDs,
+				Provider:                  pc.Provider,
+				Weight:                    pc.Weight,
+				AllowedModels:             sortedAllowedModels,
+				BlacklistedModels:         sortedBlacklistedModels,
+				AllowedModelsPatterns:     sortedAllowedPatterns,
+				BlacklistedModelsPatterns: sortedBlacklistedPatterns,
+				AllowAllKeys:              pc.AllowAllKeys,
+				RateLimitID:               pc.RateLimitID,
+				KeyIDs:                    keyIDs,
 			}
 		}
 		data, err := sonic.Marshal(providerConfigsForHash)

@@ -492,6 +492,10 @@ var configstoreMigrationSteps = []migrationStep{
 	{IDs: []string{"backfill_vk_allow_all_providers_hash"}, run: migrationBackfillVirtualKeyAllowAllProvidersHash},
 	{IDs: []string{"add_prompt_cache_json_column"}, run: migrationAddPromptCacheJSONColumn},
 	{IDs: []string{"add_hidden_request_types_json_column"}, run: migrationAddHiddenRequestTypesJSONColumn},
+	{IDs: []string{"add_use_openai_endpoints_column"}, run: migrationAddUseOpenAIEndpointsColumn},
+	{IDs: []string{"add_time_of_day_pricing_columns"}, run: migrationAddTimeOfDayPricingColumns},
+	{IDs: []string{"add_key_model_patterns_json_columns"}, run: migrationAddKeyModelPatternsJSONColumns},
+	{IDs: []string{"add_vk_provider_config_model_patterns_columns"}, run: migrationAddVirtualKeyModelPatternsColumns},
 }
 
 // videoResolutionPricingColumns are the resolution-banded video output rate columns.
@@ -13490,6 +13494,146 @@ func migrationAddHiddenRequestTypesJSONColumn(ctx context.Context, db *gorm.DB, 
 	}})
 	if err := m.Migrate(); err != nil {
 		return fmt.Errorf("error running %s migration: %w", migrationName, err)
+	}
+	return nil
+}
+
+// migrationAddUseOpenAIEndpointsColumn adds the use_openai_endpoints column to the config_keys table.
+func migrationAddUseOpenAIEndpointsColumn(ctx context.Context, db *gorm.DB, logger schemas.Logger) error {
+	migrationName := "add_use_openai_endpoints_column"
+	logger.Info("[configstore] starting migration %s", migrationName)
+	defer logger.Info("[configstore] finished migration %s", migrationName)
+	m := migrator.New(db, migrator.DefaultOptions, []*migrator.Migration{{
+		ID: migrationName,
+		Migrate: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			if err := addColumnIfNotExists(tx, logger, &tables.TableKey{}, "use_openai_endpoints"); err != nil {
+				return fmt.Errorf("failed to add use_openai_endpoints column: %w", err)
+			}
+			return nil
+		},
+		Rollback: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			if err := dropColumnIfExists(tx, logger, &tables.TableKey{}, "use_openai_endpoints"); err != nil {
+				return fmt.Errorf("failed to drop use_openai_endpoints column: %w", err)
+			}
+			return nil
+		},
+	}})
+	if err := m.Migrate(); err != nil {
+		return fmt.Errorf("failed to run migration %s: %w", migrationName, err)
+	}
+	return nil
+}
+
+// migrationAddTimeOfDayPricingColumns adds the peak/off-peak pricing columns to
+// governance_model_pricing. Providers such as DeepSeek bill the same model at
+// two different rates depending on the time of day; off_peak_cost_multiplier
+// scales usage-based charges outside the windows declared in peak_hours.
+func migrationAddTimeOfDayPricingColumns(ctx context.Context, db *gorm.DB, logger schemas.Logger) error {
+	migrationName := "add_time_of_day_pricing_columns"
+	logger.Info("[configstore] starting migration %s", migrationName)
+	defer logger.Info("[configstore] finished migration %s", migrationName)
+	columns := []string{
+		"off_peak_cost_multiplier",
+		"peak_hours",
+	}
+	m := migrator.New(db, migrator.DefaultOptions, []*migrator.Migration{{
+		ID: migrationName,
+		Migrate: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			for _, field := range columns {
+				if err := addColumnIfNotExists(tx, logger, &tables.TableModelPricing{}, field); err != nil {
+					return fmt.Errorf("failed to add column %s: %w", field, err)
+				}
+			}
+			return nil
+		},
+		Rollback: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			for _, field := range columns {
+				if err := dropColumnIfExists(tx, logger, &tables.TableModelPricing{}, field); err != nil {
+					return fmt.Errorf("failed to drop column %s: %w", field, err)
+				}
+			}
+			return nil
+		},
+	}})
+	if err := m.Migrate(); err != nil {
+		return fmt.Errorf("error running %s migration: %w", migrationName, err)
+	}
+	return nil
+}
+
+// migrationAddKeyModelPatternsJSONColumns adds models_patterns_json and
+// blacklisted_models_patterns_json to config_keys: the RE2 pattern twins of
+// models_json and blacklisted_models_json. No backfill: a NULL or empty column
+// reads as no patterns.
+func migrationAddKeyModelPatternsJSONColumns(ctx context.Context, db *gorm.DB, logger schemas.Logger) error {
+	migrationName := "add_key_model_patterns_json_columns"
+	logger.Info("[configstore] starting migration %s", migrationName)
+	defer logger.Info("[configstore] finished migration %s", migrationName)
+	columns := []string{"models_patterns_json", "blacklisted_models_patterns_json"}
+	m := migrator.New(db, migrator.DefaultOptions, []*migrator.Migration{{
+		ID: migrationName,
+		Migrate: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			for _, column := range columns {
+				if err := addColumnIfNotExists(tx, logger, &tables.TableKey{}, column); err != nil {
+					return fmt.Errorf("failed to add %s column: %w", column, err)
+				}
+			}
+			return nil
+		},
+		Rollback: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			for _, column := range columns {
+				if err := dropColumnIfExists(tx, logger, &tables.TableKey{}, column); err != nil {
+					return fmt.Errorf("failed to drop %s column: %w", column, err)
+				}
+			}
+			return nil
+		},
+	}})
+	if err := m.Migrate(); err != nil {
+		return fmt.Errorf("error running %s migration: %s", migrationName, err.Error())
+	}
+	return nil
+}
+
+// migrationAddVirtualKeyModelPatternsColumns adds allowed_models_patterns and
+// blacklisted_models_patterns to governance_virtual_key_provider_configs: the
+// RE2 pattern twins of allowed_models and blacklisted_models. No backfill: a
+// NULL column reads as no patterns, and config hashes only include the
+// patterns when set, so existing virtual keys keep their hash.
+func migrationAddVirtualKeyModelPatternsColumns(ctx context.Context, db *gorm.DB, logger schemas.Logger) error {
+	migrationName := "add_vk_provider_config_model_patterns_columns"
+	logger.Info("[configstore] starting migration %s", migrationName)
+	defer logger.Info("[configstore] finished migration %s", migrationName)
+	columns := []string{"allowed_models_patterns", "blacklisted_models_patterns"}
+	m := migrator.New(db, migrator.DefaultOptions, []*migrator.Migration{{
+		ID: migrationName,
+		Migrate: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			for _, column := range columns {
+				if err := addColumnIfNotExists(tx, logger, &tables.TableVirtualKeyProviderConfig{}, column); err != nil {
+					return fmt.Errorf("failed to add %s column: %w", column, err)
+				}
+			}
+			return nil
+		},
+		Rollback: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			for _, column := range columns {
+				if err := dropColumnIfExists(tx, logger, &tables.TableVirtualKeyProviderConfig{}, column); err != nil {
+					return fmt.Errorf("failed to drop %s column: %w", column, err)
+				}
+			}
+			return nil
+		},
+	}})
+	if err := m.Migrate(); err != nil {
+		return fmt.Errorf("error running %s migration: %s", migrationName, err.Error())
 	}
 	return nil
 }

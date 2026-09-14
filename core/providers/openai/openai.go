@@ -184,7 +184,7 @@ func ListModelsByKey(
 		return nil, providerUtils.SetErrorLatency(bifrostErr, latency)
 	}
 
-	response := openaiResponse.ToBifrostListModelsResponse(providerName, key.Models, key.BlacklistedModels, key.Aliases, unfiltered)
+	response := openaiResponse.ToBifrostListModelsResponse(providerName, key.ModelAccess(), key.Aliases, unfiltered)
 
 	response.ExtraFields.Latency = latency.Milliseconds()
 	response.ExtraFields.ProviderResponseHeaders = providerResponseHeaders
@@ -615,6 +615,17 @@ func HandleOpenAITextCompletionStreaming(
 			if readErr != nil {
 				if ctx.Err() != nil {
 					return
+				}
+				// A silent park after finish_reason (#7108): the response is complete, so the
+				// idle timeout that finally unblocked the read ends the stream cleanly instead
+				// of failing a response the client already has. The timer closed the socket
+				// and claimed ConnectionClosed, so the deferred release skips the drain.
+				if errors.Is(readErr, providerUtils.ErrStreamIdleTimeout) && finishReason != nil {
+					ctx.SetValue(schemas.BifrostContextKeyStreamParkedAfterFinish, true)
+					if usage.TotalTokens == 0 {
+						logger.Warn("provider %s went silent after finish_reason without sending usage; token counts and cost are unavailable for this request", providerName)
+					}
+					break
 				}
 				if readErr != io.EOF {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
@@ -1303,6 +1314,19 @@ func HandleOpenAIChatCompletionStreaming(
 				if ctx.Err() != nil {
 					return
 				}
+				// A silent park after finish_reason (#7108): the response is complete, so the
+				// idle timeout that finally unblocked the read ends the stream cleanly instead
+				// of failing a response the client already has. On the Responses fallback path
+				// the terminal signal is the pending completed/incomplete event. The timer
+				// closed the socket and claimed ConnectionClosed, so the deferred release
+				// skips the drain.
+				if errors.Is(readErr, providerUtils.ErrStreamIdleTimeout) && (finishReason != nil || pendingFinalEvent != nil) {
+					ctx.SetValue(schemas.BifrostContextKeyStreamParkedAfterFinish, true)
+					if usage.TotalTokens == 0 {
+						logger.Warn("provider %s went silent after finish_reason without sending usage; token counts and cost are unavailable for this request", providerName)
+					}
+					break
+				}
 				if readErr != io.EOF {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
@@ -1448,13 +1472,10 @@ func HandleOpenAIChatCompletionStreaming(
 					providerUtils.ProcessAndSendResponse(ctx, postHookRunner, providerUtils.GetBifrostResponseForStreamResponse(nil, nil, response, nil, nil, nil), responseChan, postHookSpanFinalizer)
 				}
 
-				// Bedrock Mantle ends the stream after finish_reason and never sends [DONE], so
-				// unlike the chat branch below this one has no marker to exit on. Without this it
-				// waits on the connection until the idle timeout.
-				//
-				// Mantle sends usage in the chunk *after* the one carrying finish_reason, and usage
-				// is attached to the terminal event at stream end - breaking on finish_reason alone
-				// drops it, and with it the cost.
+				// Mantle sends usage in the chunk *after* the one carrying finish_reason and then
+				// [DONE]. Usage is attached to the terminal event at stream end, so this exits as
+				// soon as both have been seen instead of waiting for the marker; breaking on
+				// finish_reason alone would drop the usage and with it the cost.
 				if fallbackFinishReasonSeen && usageSeen &&
 					(providerName == schemas.BedrockMantle || providerName == schemas.Bedrock) {
 					break

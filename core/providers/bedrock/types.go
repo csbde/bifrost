@@ -283,7 +283,7 @@ type BedrockDocumentSource struct {
 // See: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_DocumentSource.html
 type BedrockDocumentSourceData struct {
 	Bytes      *string            `json:"bytes,omitempty"`      // Base64-encoded document bytes
-	Text       *string            `json:"text,omitempty"`       // Plain text content
+	Text       *string            `json:"text,omitempty"`       // Plain text content; Converse rejects it unless the block enables citations
 	S3Location *BedrockS3Location `json:"s3Location,omitempty"` // Optional: S3 location (model-dependent support)
 }
 
@@ -693,8 +693,16 @@ type BedrockGuardrailTraceDetail struct {
 // BedrockCountTokensRequest represents a Bedrock CountTokens API request
 type BedrockCountTokensRequest struct {
 	Input struct {
-		Converse *BedrockConverseRequest `json:"converse,omitempty"`
+		Converse    *BedrockConverseRequest             `json:"converse,omitempty"`
+		InvokeModel *BedrockCountTokensInvokeModelInput `json:"invokeModel,omitempty"`
 	} `json:"input"`
+}
+
+// BedrockCountTokensInvokeModelInput is the "invokeModel" member of the
+// CountTokens input union. Body is the exact InvokeModel request body; AWS
+// takes it as base64-encoded binary, which []byte marshals to.
+type BedrockCountTokensInvokeModelInput struct {
+	Body []byte `json:"body"`
 }
 
 // BedrockCountTokensResponse represents a Bedrock CountTokens API response

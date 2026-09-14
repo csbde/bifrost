@@ -1877,8 +1877,23 @@
                     "enum": ["own-data", "team-data", "all-data"],
                     "default": "all-data"
                   },
+                  "entity_dac": {
+                    "type": "object",
+                    "description": "Per-entity DAC overrides keyed by resource name. Each entry narrows or widens the role's global dac for that one entity; unlisted entities follow dac. Resources accepting an override as of this chart release: Logs, MCPLogs, AuditLogs, VirtualKeys, Users, Teams, Customers, BusinessUnits, RBAC, APIKeys, AccessProfiles, PromptRepository, RoutingRules, GuardrailsConfig, MCPGateway, VirtualMCPs, Projects. Names are not enumerated here so a resource added by a newer Bifrost works without a chart upgrade; an unrecognised name is logged and skipped at startup. Config is authoritative - the role's whole override set is replaced on each sync, and omitting entity_dac clears it.",
+                    "additionalProperties": {
+                      "type": "string",
+                      "enum": ["own-data", "team-data", "all-data"]
+                    }
+                  },
                   "access_profile": {
                     "type": "string"
+                  },
+                  "access_profiles": {
+                    "type": "array",
+                    "description": "Names of all access profiles granted by this role. When present, this field takes precedence over access_profile; an empty list removes all profile grants.",
+                    "items": {
+                      "type": "string"
+                    }
                   },
                   "permissions": {
                     "type": "array",
@@ -2786,6 +2801,25 @@
             "config": {
               "type": "object",
               "description": "Provider-specific configuration"
+            },
+            "trustedNetworks": {
+              "type": "array",
+              "description": "Private IP/CIDR allowlist the SSRF guard consults before outbound discovery calls, so a self-hosted IdP on an internal network can be reached. Declaring this key makes Helm own the whole list; an explicit empty array clears dashboard-added ranges. Renders into scim_config.trusted_networks.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cidr": {
+                    "type": "string",
+                    "description": "IP or CIDR range to trust (e.g. 10.20.0.0/16). A bare IP is a single host; hostnames are not accepted."
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Optional admin-facing label for this range"
+                  }
+                },
+                "required": ["cidr"],
+                "additionalProperties": false
+              }
             }
           },
           "required": ["enabled"],
@@ -6125,6 +6159,11 @@
           "description": "For deepseek, fireworks, vllm, and sgl keys: route chat completions and responses requests through Anthropic-compatible endpoints.",
           "default": false
         },
+        "use_openai_endpoints": {
+          "type": "boolean",
+          "description": "For bedrock keys: route chat completions and responses requests through Bedrock's OpenAI-compatible endpoints (/openai/v1) instead of Converse, for models that serve them. Converse is used for everything else, and Bedrock Guardrails, performanceConfig and requestMetadata apply only on Converse.",
+          "default": false
+        },
         "azure_key_config": {
           "type": "object",
           "properties": {
@@ -6498,6 +6537,10 @@
                   "use_anthropic_endpoints": {
                     "type": "boolean",
                     "description": "Routes chat completions and responses requests through Anthropic-compatible endpoints."
+                  },
+                  "use_openai_endpoints": {
+                    "type": "boolean",
+                    "description": "Per-alias override of use_openai_endpoints."
                   }
                 },
                 "required": ["model_id"],

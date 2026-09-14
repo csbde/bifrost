@@ -5809,15 +5809,19 @@ func convertSingleAnthropicMessageToBifrostMessages(ctx *schemas.BifrostContext,
 	// Handle text content (simple case)
 	if msg.Content.ContentStr != nil {
 		roleVal := schemas.ResponsesMessageRoleType(msg.Role)
-		return []schemas.ResponsesMessage{
-			{
-				Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
-				Role: &roleVal,
-				Content: &schemas.ResponsesMessageContent{
-					ContentStr: msg.Content.ContentStr,
-				},
+		bifrostMsg := schemas.ResponsesMessage{
+			Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
+			Role: &roleVal,
+			Content: &schemas.ResponsesMessageContent{
+				ContentStr: msg.Content.ContentStr,
 			},
 		}
+		if isOutput {
+			// Replayed assistant items need status on strict OpenAI-compatible
+			// validators (Bedrock Mantle, #7074), same as the block-content paths.
+			bifrostMsg.Status = schemas.Ptr("completed")
+		}
+		return []schemas.ResponsesMessage{bifrostMsg}
 	}
 
 	// Handle content blocks
@@ -5839,15 +5843,19 @@ func convertSingleAnthropicMessageToBifrostMessagesGrouped(msg *AnthropicMessage
 	// Handle text content (simple case)
 	if msg.Content.ContentStr != nil {
 		roleVal := schemas.ResponsesMessageRoleType(msg.Role)
-		return []schemas.ResponsesMessage{
-			{
-				Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
-				Role: &roleVal,
-				Content: &schemas.ResponsesMessageContent{
-					ContentStr: msg.Content.ContentStr,
-				},
+		bifrostMsg := schemas.ResponsesMessage{
+			Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
+			Role: &roleVal,
+			Content: &schemas.ResponsesMessageContent{
+				ContentStr: msg.Content.ContentStr,
 			},
 		}
+		if isOutput {
+			// Replayed assistant items need status on strict OpenAI-compatible
+			// validators (Bedrock Mantle, #7074), same as the block-content paths.
+			bifrostMsg.Status = schemas.Ptr("completed")
+		}
+		return []schemas.ResponsesMessage{bifrostMsg}
 	}
 
 	// Handle content blocks with grouping for text and tool calls
@@ -5950,9 +5958,10 @@ func convertAnthropicContentBlocksToResponsesMessagesGrouped(contentBlocks []Ant
 		}
 		if isOutputMessage {
 			bifrostMessages = append(bifrostMessages, schemas.ResponsesMessage{
-				ID:   schemas.Ptr("msg_" + schemas.GetRandomString(50)),
-				Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
-				Role: role,
+				ID:     schemas.Ptr("msg_" + schemas.GetRandomString(50)),
+				Type:   schemas.Ptr(schemas.ResponsesMessageTypeMessage),
+				Role:   role,
+				Status: schemas.Ptr("completed"),
 				Content: &schemas.ResponsesMessageContent{
 					ContentBlocks: accumulatedTextContent,
 				},
@@ -5997,20 +6006,21 @@ func convertAnthropicContentBlocksToResponsesMessagesGrouped(contentBlocks []Ant
 						},
 					})
 				} else {
-					// For input messages, emit text immediately as separate message
+					// For input messages, emit text immediately as separate message.
+					// input_text, not output_text: the Responses API matches `input`
+					// against a union of input-item variants, and an output-side block on
+					// a user message matches none of them ("Invalid 'input': value did not
+					// match any expected variant"). Annotations and logprobs are
+					// output-only for the same reason. Mirrors the ungrouped converter.
 					bifrostMsg := schemas.ResponsesMessage{
 						Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
 						Role: role,
 						Content: &schemas.ResponsesMessageContent{
 							ContentBlocks: []schemas.ResponsesMessageContentBlock{
 								{
-									Type:         schemas.ResponsesOutputMessageContentTypeText,
+									Type:         schemas.ResponsesInputMessageContentBlockTypeText,
 									Text:         block.Text,
 									CacheControl: block.CacheControl,
-									ResponsesOutputMessageContentText: &schemas.ResponsesOutputMessageContentText{
-										LogProbs:    []schemas.ResponsesOutputMessageContentTextLogProb{},
-										Annotations: []schemas.ResponsesOutputMessageContentTextAnnotation{},
-									},
 								},
 							},
 						},
@@ -6031,6 +6041,7 @@ func convertAnthropicContentBlocksToResponsesMessagesGrouped(contentBlocks []Ant
 				}
 				if isOutputMessage {
 					bifrostMsg.ID = schemas.Ptr("msg_" + schemas.GetRandomString(50))
+					bifrostMsg.Status = schemas.Ptr("completed")
 				}
 				bifrostMessages = append(bifrostMessages, bifrostMsg)
 			}
@@ -6047,6 +6058,7 @@ func convertAnthropicContentBlocksToResponsesMessagesGrouped(contentBlocks []Ant
 				}
 				if isOutputMessage {
 					bifrostMsg.ID = schemas.Ptr("msg_" + schemas.GetRandomString(50))
+					bifrostMsg.Status = schemas.Ptr("completed")
 				}
 				bifrostMessages = append(bifrostMessages, bifrostMsg)
 			}
@@ -6062,6 +6074,7 @@ func convertAnthropicContentBlocksToResponsesMessagesGrouped(contentBlocks []Ant
 				}
 				if isOutputMessage {
 					bifrostMsg.ID = schemas.Ptr("msg_" + schemas.GetRandomString(50))
+					bifrostMsg.Status = schemas.Ptr("completed")
 				}
 				bifrostMessages = append(bifrostMessages, bifrostMsg)
 			}
@@ -6394,6 +6407,7 @@ func convertAnthropicContentBlocksToResponsesMessages(ctx *schemas.BifrostContex
 				}
 				if isOutputMessage {
 					bifrostMsg.ID = schemas.Ptr("msg_" + schemas.GetRandomString(50))
+					bifrostMsg.Status = schemas.Ptr("completed")
 				}
 				bifrostMessages = append(bifrostMessages, bifrostMsg)
 			}
@@ -6408,6 +6422,7 @@ func convertAnthropicContentBlocksToResponsesMessages(ctx *schemas.BifrostContex
 				}
 				if isOutputMessage {
 					bifrostMsg.ID = schemas.Ptr("msg_" + schemas.GetRandomString(50))
+					bifrostMsg.Status = schemas.Ptr("completed")
 				}
 				bifrostMessages = append(bifrostMessages, bifrostMsg)
 			}
@@ -6422,6 +6437,7 @@ func convertAnthropicContentBlocksToResponsesMessages(ctx *schemas.BifrostContex
 				}
 				if isOutputMessage {
 					bifrostMsg.ID = schemas.Ptr("msg_" + schemas.GetRandomString(50))
+					bifrostMsg.Status = schemas.Ptr("completed")
 				}
 				bifrostMessages = append(bifrostMessages, bifrostMsg)
 			}

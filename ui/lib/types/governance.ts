@@ -141,6 +141,10 @@ export interface VirtualKeyProviderConfig {
 	weight: number | null;
 	allowed_models: string[];
 	blacklisted_models: string[];
+	/** RE2 patterns admitting models by name shape, alongside allowed_models. */
+	allowed_models_patterns?: string[];
+	/** RE2 patterns blocking models by name shape; win over the allow side. */
+	blacklisted_models_patterns?: string[];
 	allow_all_keys: boolean; // True means all keys allowed; false with empty keys means no keys allowed
 	budgets?: Budget[];
 	rate_limit?: RateLimit;
@@ -195,6 +199,8 @@ export interface VirtualKeyProviderConfigRequest {
 	weight?: number | null;
 	allowed_models?: string[];
 	blacklisted_models?: string[];
+	allowed_models_patterns?: string[];
+	blacklisted_models_patterns?: string[];
 	budgets?: CreateBudgetRequest[];
 	rate_limit?: CreateRateLimitRequest;
 	model_budgets?: VirtualKeyModelBudgetRequest[];
@@ -207,6 +213,8 @@ export interface VirtualKeyProviderConfigUpdateRequest {
 	weight?: number | null;
 	allowed_models?: string[];
 	blacklisted_models?: string[];
+	allowed_models_patterns?: string[];
+	blacklisted_models_patterns?: string[];
 	budgets?: CreateBudgetRequest[];
 	rate_limit?: UpdateRateLimitRequest;
 	model_budgets?: VirtualKeyModelBudgetRequest[]; // Full desired per-model set when provider_configs is supplied
@@ -610,6 +618,29 @@ export interface PricingOverridePatch {
 	// OCR
 	ocr_cost_per_page?: number;
 	annotation_cost_per_page?: number;
+	// Time of day
+	off_peak_cost_multiplier?: number;
+	peak_hours?: PeakHoursSchedule;
+}
+
+/**
+ * Recurring weekly windows during which a model is billed at its peak (base)
+ * rates. Any instant outside every window is off-peak and is discounted by
+ * `off_peak_cost_multiplier`.
+ */
+export interface PeakHoursSchedule {
+	/** IANA location name (e.g. "UTC", "Asia/Shanghai"). Empty means UTC. */
+	timezone?: string;
+	windows?: PeakHoursWindow[];
+}
+
+export interface PeakHoursWindow {
+	/** Weekdays, 0 = Sunday through 6 = Saturday. */
+	days: number[];
+	/** "HH:MM" in the schedule's timezone, inclusive. */
+	start: string;
+	/** "HH:MM" in the schedule's timezone, exclusive; <= start wraps midnight. */
+	end: string;
 }
 
 export interface PricingOverride {

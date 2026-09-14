@@ -880,9 +880,24 @@
                 "enum": ["own-data", "team-data", "all-data"],
                 "default": "all-data"
               },
+              "entity_dac": {
+                "type": "object",
+                "description": "Per-entity Data Access Control overrides, keyed by resource name. Each entry narrows or widens the role's global dac for that one entity; entities not listed follow dac. Resources accepting an override as of this release: Logs, MCPLogs, AuditLogs, VirtualKeys, Users, Teams, Customers, BusinessUnits, RBAC, APIKeys, AccessProfiles, PromptRepository, RoutingRules, GuardrailsConfig, MCPGateway, VirtualMCPs, Projects. ",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": ["own-data", "team-data", "all-data"]
+                }
+              },
               "access_profile": {
                 "type": "string",
                 "description": "Name of the access profile (defined in access_profiles) to attach as the default for this role. Changing this field triggers a re-sync on next startup. Leave unset to let the dashboard manage the assignment."
+              },
+              "access_profiles": {
+                "type": "array",
+                "description": "Names of all access profiles granted by this role. When present, this field takes precedence over access_profile; an empty list removes all profile grants.",
+                "items": {
+                  "type": "string"
+                }
               },
               "permissions": {
                 "type": "array",
@@ -2452,6 +2467,11 @@
                       },
                       "description": "Custom labels to add to Prometheus metrics"
                     },
+                    "overhead_breakdown_enabled": {
+                      "type": "boolean",
+                      "description": "Export the per-component overhead histogram bifrost_overhead_component_microseconds (overhead latency split by the overhead_component label). Off by default. Requires tracing to be active, since the breakdown is computed from completed trace spans.",
+                      "default": false
+                    },
                     "push_gateway": {
                       "type": "object",
                       "description": "Configuration for pushing metrics to a Prometheus Push Gateway for multi-node cluster deployments",
@@ -3502,6 +3522,11 @@
           "minimum": 1,
           "maximum": 300
         },
+        "overhead_breakdown_enabled": {
+          "type": "boolean",
+          "description": "Export the per-component overhead histogram bifrost_overhead_component_microseconds (overhead latency split by the overhead_component attribute). Off by default. Requires metrics_enabled and an active trace, since the breakdown is computed from completed spans.",
+          "default": false
+        },
         "request_headers": {
           "type": "array",
           "items": {
@@ -3821,6 +3846,26 @@
           "description": "Models blocked for this provider config even if matched by allowed_models. Use [\"*\"] to block all; empty array blocks none.",
           "items": {
             "type": "string"
+          }
+        },
+        "allowed_models_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "RE2 patterns that allow models by shape, alongside allowed_models. Each pattern is matched case-insensitively as a full match against the model name and \"provider/model\". \"*\" is not a valid pattern.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": { "const": "*" }
+          }
+        },
+        "blacklisted_models_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "RE2 patterns that block models by shape, alongside blacklisted_models. Each pattern is matched case-insensitively as a full match against the model name and \"provider/model\". \"*\" is not a valid pattern. Block patterns win over allowed_models and allowed_models_patterns.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": { "const": "*" }
           }
         },
         "rate_limit_id": {
@@ -4247,7 +4292,7 @@
         "default_request_timeout_in_seconds": {
           "type": "integer",
           "minimum": 1,
-          "description": "Default request timeout in seconds"
+          "description": "Default request timeout in seconds. For streaming requests this bounds the connection, the request write and the wait for response headers; once headers arrive, stream_idle_timeout_in_seconds governs the body."
         },
         "max_retries": {
           "type": "integer",
@@ -4328,7 +4373,7 @@
         "default_request_timeout_in_seconds": {
           "type": "integer",
           "minimum": 1,
-          "description": "Default request timeout in seconds"
+          "description": "Default request timeout in seconds. For streaming requests this bounds the connection, the request write and the wait for response headers; once headers arrive, stream_idle_timeout_in_seconds governs the body."
         },
         "max_retries": {
           "type": "integer",
@@ -4486,6 +4531,26 @@
           },
           "description": "Models this key can access. Use [\"*\"] to allow all models; empty array denies all (deny-by-default)."
         },
+        "models_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": { "const": "*" }
+          },
+          "description": "RE2 patterns that allow models by shape, alongside models. Each pattern is matched case-insensitively as a full match against the model name and \"provider/model\". \"*\" is not a valid pattern."
+        },
+        "blacklisted_models_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": { "const": "*" }
+          },
+          "description": "RE2 patterns that block models by shape, alongside blacklisted_models. Each pattern is matched case-insensitively as a full match against the model name and \"provider/model\". \"*\" is not a valid pattern. Block patterns win over models and models_patterns."
+        },
         "weight": {
           "type": "number",
           "minimum": 0,
@@ -4572,6 +4637,10 @@
                   "use_anthropic_endpoints": {
                     "type": "boolean",
                     "description": "Routes chat completions and responses requests through Anthropic-compatible endpoints."
+                  },
+                  "use_openai_endpoints": {
+                    "type": "boolean",
+                    "description": "Per-alias override of use_openai_endpoints."
                   }
                 },
                 "required": ["model_id"],
@@ -4703,6 +4772,10 @@
               },
               "required": ["region"],
               "additionalProperties": false
+            },
+            "use_openai_endpoints": {
+              "type": "boolean",
+              "description": "Routes chat completions and responses requests through Bedrock's OpenAI-compatible endpoints (/openai/v1) instead of Converse, for models that serve them. Converse is used for everything else. Bedrock Guardrails, performanceConfig and requestMetadata apply only on Converse: the OpenAI-compatible endpoints accept and ignore them."
             }
           }
         }
@@ -6672,6 +6745,25 @@
         "config": {
           "type": "object",
           "description": "Provider-specific configuration"
+        },
+        "trusted_networks": {
+          "type": "array",
+          "description": "Private IP/CIDR allowlist the SSRF guard consults before outbound discovery calls (the generic provider's discover-endpoints and discover-claims flows), so a self-hosted IdP on an internal network can be reached. Declaring this key makes config.json own the whole list: it replaces whatever is stored, and an explicit empty array clears dashboard-added entries. Omit the key to leave the stored allowlist untouched.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "cidr": {
+                "type": "string",
+                "description": "IP or CIDR range to trust, e.g. 10.20.0.0/16. A bare IP is treated as a single host (/32, or /128 for IPv6). Hostnames are not accepted, since DNS would then decide which requests bypass SSRF protection."
+              },
+              "description": {
+                "type": "string",
+                "description": "Optional admin-facing label for this range, e.g. On-prem Keycloak"
+              }
+            },
+            "required": ["cidr"],
+            "additionalProperties": false
+          }
         }
       },
       "required": ["enabled"],
@@ -7806,7 +7898,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Allowed model names (ignored when all_models_allowed is true)"
+          "description": "Allowed model names. Use [\"*\"] to allow all models; empty array or omitted denies all unless an allowed_models_patterns entry matches (ignored when all_models_allowed is true)."
         },
         "budgets": {
           "type": "array",
@@ -7822,6 +7914,26 @@
           "description": "Models blocked for this provider even if matched by allowed_models (denylist wins). Use [\"*\"] to block all; empty array or omitted blocks none.",
           "items": {
             "type": "string"
+          }
+        },
+        "allowed_models_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "RE2 patterns that allow models by shape, alongside allowed_models. Each pattern is matched case-insensitively as a full match against the model name and \"provider/model\". \"*\" is not a valid pattern. Ignored when all_models_allowed is true.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": { "const": "*" }
+          }
+        },
+        "blacklisted_models_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "RE2 patterns that block models by shape, alongside blacklisted_models. Each pattern is matched case-insensitively as a full match against the model name and \"provider/model\". \"*\" is not a valid pattern. Block patterns win over allowed_models and allowed_models_patterns.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": { "const": "*" }
           }
         },
         "weight": {
@@ -8092,13 +8204,33 @@
           "items": {
             "type": "string"
           },
-          "description": "Allowed model names (ignored when all_models_allowed is true)"
+          "description": "Allowed model names. Use [\"*\"] to allow all models; empty array or omitted denies all unless an allowed_models_patterns entry matches (ignored when all_models_allowed is true)."
         },
         "blacklisted_models": {
           "type": "array",
           "description": "Models blocked for this provider even if matched by allowed_models (denylist wins). Use [\"*\"] to block all; empty array or omitted blocks none.",
           "items": {
             "type": "string"
+          }
+        },
+        "allowed_models_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "RE2 patterns that allow models by shape, alongside allowed_models. Each pattern is matched case-insensitively as a full match against the model name and \"provider/model\". \"*\" is not a valid pattern. Ignored when all_models_allowed is true.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": { "const": "*" }
+          }
+        },
+        "blacklisted_models_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "RE2 patterns that block models by shape, alongside blacklisted_models. Each pattern is matched case-insensitively as a full match against the model name and \"provider/model\". \"*\" is not a valid pattern. Block patterns win over allowed_models and allowed_models_patterns.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": { "const": "*" }
           }
         },
         "key_ids": {

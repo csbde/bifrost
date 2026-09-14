@@ -719,7 +719,7 @@ func applyV1Compat(configData *ConfigData) {
 	for providerName, providerCfg := range configData.Providers {
 		changed := false
 		for i := range providerCfg.Keys {
-			if len(providerCfg.Keys[i].Models) == 0 {
+			if len(providerCfg.Keys[i].Models) == 0 && len(providerCfg.Keys[i].ModelsPatterns) == 0 {
 				providerCfg.Keys[i].Models = schemas.WhiteList{"*"}
 				changed = true
 			}
@@ -754,7 +754,7 @@ func applyV1Compat(configData *ConfigData) {
 		} else {
 			for j := range vk.ProviderConfigs {
 				pc := &vk.ProviderConfigs[j]
-				if len(pc.AllowedModels) == 0 {
+				if len(pc.AllowedModels) == 0 && len(pc.AllowedModelsPatterns) == 0 {
 					pc.AllowedModels = schemas.WhiteList{"*"}
 				}
 				if !pc.AllowAllKeys && len(pc.Keys) == 0 {
@@ -1619,25 +1619,27 @@ func mergeProviderKeys(provider schemas.ModelProvider, fileKeys, dbKeys []schema
 			} else {
 				// No stored hash (legacy) - fall back to generating fresh hash
 				dbKeyHash, err := configstore.GenerateKeyHash(schemas.Key{
-					Name:                   dbKey.Name,
-					Value:                  dbKey.Value,
-					Models:                 dbKey.Models,
-					BlacklistedModels:      dbKey.BlacklistedModels,
-					Weight:                 dbKey.Weight,
-					AzureKeyConfig:         dbKey.AzureKeyConfig,
-					VertexKeyConfig:        dbKey.VertexKeyConfig,
-					BedrockKeyConfig:       dbKey.BedrockKeyConfig,
-					BedrockMantleKeyConfig: dbKey.BedrockMantleKeyConfig,
-					ReplicateKeyConfig:     dbKey.ReplicateKeyConfig,
-					Aliases:                dbKey.Aliases,
-					VLLMKeyConfig:          dbKey.VLLMKeyConfig,
-					OllamaKeyConfig:        dbKey.OllamaKeyConfig,
-					SGLKeyConfig:           dbKey.SGLKeyConfig,
-					DatabricksKeyConfig:    dbKey.DatabricksKeyConfig,
-					GithubCopilotKeyConfig: dbKey.GithubCopilotKeyConfig,
-					Enabled:                dbKey.Enabled,
-					UseForBatchAPI:         dbKey.UseForBatchAPI,
-					UseAnthropicEndpoints:  dbKey.UseAnthropicEndpoints,
+					Name:                      dbKey.Name,
+					Value:                     dbKey.Value,
+					Models:                    dbKey.Models,
+					BlacklistedModels:         dbKey.BlacklistedModels,
+					ModelsPatterns:            dbKey.ModelsPatterns,
+					BlacklistedModelsPatterns: dbKey.BlacklistedModelsPatterns,
+					Weight:                    dbKey.Weight,
+					AzureKeyConfig:            dbKey.AzureKeyConfig,
+					VertexKeyConfig:           dbKey.VertexKeyConfig,
+					BedrockKeyConfig:          dbKey.BedrockKeyConfig,
+					BedrockMantleKeyConfig:    dbKey.BedrockMantleKeyConfig,
+					ReplicateKeyConfig:        dbKey.ReplicateKeyConfig,
+					Aliases:                   dbKey.Aliases,
+					VLLMKeyConfig:             dbKey.VLLMKeyConfig,
+					OllamaKeyConfig:           dbKey.OllamaKeyConfig,
+					SGLKeyConfig:              dbKey.SGLKeyConfig,
+					DatabricksKeyConfig:       dbKey.DatabricksKeyConfig,
+					GithubCopilotKeyConfig:    dbKey.GithubCopilotKeyConfig,
+					Enabled:                   dbKey.Enabled,
+					UseForBatchAPI:            dbKey.UseForBatchAPI,
+					UseAnthropicEndpoints:     dbKey.UseAnthropicEndpoints,
 				})
 				if err != nil {
 					logger.Warn("failed to generate key hash for db key %s (%s): %v, falling back to name comparison", dbKey.Name, provider, err)
@@ -1704,25 +1706,27 @@ func reconcileProviderKeys(provider schemas.ModelProvider, fileKeys, dbKeys []sc
 			} else {
 				// No stored hash (legacy) - fall back to generating fresh hash for comparison
 				dbKeyHash, err := configstore.GenerateKeyHash(schemas.Key{
-					Name:                   dbKey.Name,
-					Value:                  dbKey.Value,
-					Models:                 dbKey.Models,
-					BlacklistedModels:      dbKey.BlacklistedModels,
-					Weight:                 dbKey.Weight,
-					AzureKeyConfig:         dbKey.AzureKeyConfig,
-					VertexKeyConfig:        dbKey.VertexKeyConfig,
-					BedrockKeyConfig:       dbKey.BedrockKeyConfig,
-					BedrockMantleKeyConfig: dbKey.BedrockMantleKeyConfig,
-					ReplicateKeyConfig:     dbKey.ReplicateKeyConfig,
-					Aliases:                dbKey.Aliases,
-					VLLMKeyConfig:          dbKey.VLLMKeyConfig,
-					OllamaKeyConfig:        dbKey.OllamaKeyConfig,
-					SGLKeyConfig:           dbKey.SGLKeyConfig,
-					DatabricksKeyConfig:    dbKey.DatabricksKeyConfig,
-					GithubCopilotKeyConfig: dbKey.GithubCopilotKeyConfig,
-					Enabled:                dbKey.Enabled,
-					UseForBatchAPI:         dbKey.UseForBatchAPI,
-					UseAnthropicEndpoints:  dbKey.UseAnthropicEndpoints,
+					Name:                      dbKey.Name,
+					Value:                     dbKey.Value,
+					Models:                    dbKey.Models,
+					BlacklistedModels:         dbKey.BlacklistedModels,
+					ModelsPatterns:            dbKey.ModelsPatterns,
+					BlacklistedModelsPatterns: dbKey.BlacklistedModelsPatterns,
+					Weight:                    dbKey.Weight,
+					AzureKeyConfig:            dbKey.AzureKeyConfig,
+					VertexKeyConfig:           dbKey.VertexKeyConfig,
+					BedrockKeyConfig:          dbKey.BedrockKeyConfig,
+					BedrockMantleKeyConfig:    dbKey.BedrockMantleKeyConfig,
+					ReplicateKeyConfig:        dbKey.ReplicateKeyConfig,
+					Aliases:                   dbKey.Aliases,
+					VLLMKeyConfig:             dbKey.VLLMKeyConfig,
+					OllamaKeyConfig:           dbKey.OllamaKeyConfig,
+					SGLKeyConfig:              dbKey.SGLKeyConfig,
+					DatabricksKeyConfig:       dbKey.DatabricksKeyConfig,
+					GithubCopilotKeyConfig:    dbKey.GithubCopilotKeyConfig,
+					Enabled:                   dbKey.Enabled,
+					UseForBatchAPI:            dbKey.UseForBatchAPI,
+					UseAnthropicEndpoints:     dbKey.UseAnthropicEndpoints,
 				})
 				if err != nil {
 					logger.Warn("failed to generate key hash for db key %s (%s): %v", dbKey.Name, provider, err)
@@ -5574,6 +5578,8 @@ func reconcileVirtualKeyAssociations(
 			existing.Weight = newPC.Weight
 			existing.AllowedModels = newPC.AllowedModels
 			existing.BlacklistedModels = newPC.BlacklistedModels
+			existing.AllowedModelsPatterns = newPC.AllowedModelsPatterns
+			existing.BlacklistedModelsPatterns = newPC.BlacklistedModelsPatterns
 			existing.AllowAllKeys = newPC.AllowAllKeys
 			existing.RateLimitID = newPC.RateLimitID
 			existing.Keys = newPC.Keys
@@ -6910,19 +6916,30 @@ func (c *Config) GetAllKeys() ([]configstoreTables.TableKey, error) {
 			if blacklisted == nil {
 				blacklisted = []string{}
 			}
+			modelsPatterns := key.ModelsPatterns
+			if modelsPatterns == nil {
+				modelsPatterns = schemas.ModelPatternList{}
+			}
+			blacklistedPatterns := key.BlacklistedModelsPatterns
+			if blacklistedPatterns == nil {
+				blacklistedPatterns = schemas.ModelPatternList{}
+			}
 			configStoreKey := configstoreTables.TableKey{
-				KeyID:             key.ID,
-				Name:              key.Name,
-				Value:             *key.Value.Redacted(),
-				Models:            models,
-				BlacklistedModels: blacklisted,
-				Weight:            bifrost.Ptr(key.Weight),
-				Provider:          string(providerKey),
-				ConfigHash:        key.ConfigHash,
+				KeyID:                     key.ID,
+				Name:                      key.Name,
+				Value:                     *key.Value.Redacted(),
+				Models:                    models,
+				BlacklistedModels:         blacklisted,
+				ModelsPatterns:            modelsPatterns,
+				BlacklistedModelsPatterns: blacklistedPatterns,
+				Weight:                    bifrost.Ptr(key.Weight),
+				Provider:                  string(providerKey),
+				ConfigHash:                key.ConfigHash,
 			}
 			if key.AzureKeyConfig != nil {
 				cfg := *key.AzureKeyConfig // safe copy
-				cfg.Endpoint = *cfg.Endpoint.Redacted()
+				// The endpoint is a hostname, not a credential — surface it in plaintext.
+				cfg.Endpoint = *cfg.Endpoint.RedactedIfSecret()
 				cfg.ClientID = cfg.ClientID.Redacted()
 				cfg.ClientSecret = cfg.ClientSecret.Redacted()
 				cfg.TenantID = cfg.TenantID.Redacted()
@@ -6933,7 +6950,8 @@ func (c *Config) GetAllKeys() ([]configstoreTables.TableKey, error) {
 				cfg.ARN = key.BedrockKeyConfig.ARN.Redacted()
 				cfg.AccessKey = *cfg.AccessKey.Redacted()
 				cfg.ExternalID = cfg.ExternalID.Redacted()
-				cfg.Region = cfg.Region.Redacted()
+				// The region is a public identifier, not a credential — surface it in plaintext.
+				cfg.Region = cfg.Region.RedactedIfSecret()
 				cfg.RoleARN = cfg.RoleARN.Redacted()
 				cfg.RoleSessionName = cfg.RoleSessionName.Redacted()
 				cfg.SecretKey = *cfg.SecretKey.Redacted()
@@ -6945,7 +6963,8 @@ func (c *Config) GetAllKeys() ([]configstoreTables.TableKey, error) {
 				cfg.AccessKey = *cfg.AccessKey.Redacted()
 				cfg.SecretKey = *cfg.SecretKey.Redacted()
 				cfg.SessionToken = cfg.SessionToken.Redacted()
-				cfg.Region = cfg.Region.Redacted()
+				// The region is a public identifier, not a credential — surface it in plaintext.
+				cfg.Region = cfg.Region.RedactedIfSecret()
 				cfg.RoleARN = cfg.RoleARN.Redacted()
 				cfg.ExternalID = cfg.ExternalID.Redacted()
 				cfg.RoleSessionName = cfg.RoleSessionName.Redacted()
@@ -6955,7 +6974,8 @@ func (c *Config) GetAllKeys() ([]configstoreTables.TableKey, error) {
 				cfg := *key.VertexKeyConfig // safe copy
 				cfg.ProjectID = *cfg.ProjectID.Redacted()
 				cfg.ProjectNumber = *cfg.ProjectNumber.Redacted()
-				cfg.Region = *cfg.Region.Redacted()
+				// The region is a public identifier, not a credential — surface it in plaintext.
+				cfg.Region = *cfg.Region.RedactedIfSecret()
 				cfg.AuthCredentials = *cfg.AuthCredentials.Redacted()
 				configStoreKey.VertexKeyConfig = &cfg
 			}
@@ -6964,23 +6984,27 @@ func (c *Config) GetAllKeys() ([]configstoreTables.TableKey, error) {
 			}
 			if key.VLLMKeyConfig != nil {
 				cfg := *key.VLLMKeyConfig // safe copy
-				cfg.URL = *cfg.URL.Redacted()
+				// The URL is a service address, not a credential — surface it in plaintext.
+				cfg.URL = *cfg.URL.RedactedIfSecret()
 				configStoreKey.VLLMKeyConfig = &cfg
 			}
 			if key.OllamaKeyConfig != nil {
 				cfg := *key.OllamaKeyConfig // safe copy
-				cfg.URL = *cfg.URL.Redacted()
+				// The URL is a service address, not a credential — surface it in plaintext.
+				cfg.URL = *cfg.URL.RedactedIfSecret()
 				configStoreKey.OllamaKeyConfig = &cfg
 			}
 			if key.SGLKeyConfig != nil {
 				cfg := *key.SGLKeyConfig // safe copy
-				cfg.URL = *cfg.URL.Redacted()
+				// The URL is a service address, not a credential — surface it in plaintext.
+				cfg.URL = *cfg.URL.RedactedIfSecret()
 				configStoreKey.SGLKeyConfig = &cfg
 			}
 
 			if key.DatabricksKeyConfig != nil {
 				cfg := *key.DatabricksKeyConfig // safe copy
-				cfg.WorkspaceURL = *cfg.WorkspaceURL.Redacted()
+				// The workspace URL is a hostname, not a credential — surface it in plaintext.
+				cfg.WorkspaceURL = *cfg.WorkspaceURL.RedactedIfSecret()
 				cfg.ClientID = cfg.ClientID.Redacted()
 				cfg.ClientSecret = cfg.ClientSecret.Redacted()
 				configStoreKey.DatabricksKeyConfig = &cfg
@@ -7368,15 +7392,19 @@ func (c *Config) EnableMCPClient(ctx context.Context, id string) error {
 }
 
 // RedactMCPClientConfig creates a redacted copy of a MCPClientConfig configuration.
-// Connection strings and headers are redacted for safe external exposure.
+// Credentials — headers, OAuth client secrets and the TLS CA cert — are redacted
+// for safe external exposure.
 func (c *Config) RedactMCPClientConfig(config *schemas.MCPClientConfig) *schemas.MCPClientConfig {
 	// Create an actual copy of the struct (not just a pointer copy)
 	// This prevents modifying the original config when redacting
 	configCopy := *config
 
-	// Redact connection string if present
+	// The connection string is a server address, not a credential — surface it
+	// in plaintext so operators can see which host a client points at. Anything
+	// secret about the connection lives in Headers or the OAuth block below,
+	// which stay redacted.
 	if config.ConnectionString != nil {
-		configCopy.ConnectionString = config.ConnectionString.Redacted()
+		configCopy.ConnectionString = config.ConnectionString.RedactedIfSecret()
 	}
 
 	// Redact Header values if present
