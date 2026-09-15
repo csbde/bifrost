@@ -372,7 +372,7 @@ func (provider *AnthropicProvider) listModelsByKey(ctx *schemas.BifrostContext, 
 	}
 
 	// Create final response
-	response := anthropicResponse.ToBifrostListModelsResponse(provider.GetProviderKey(), key.ModelAccess(), key.Aliases, request.Unfiltered)
+	response := anthropicResponse.ToBifrostListModelsResponse(provider.GetProviderKey(), key.Models, key.BlacklistedModels, key.Aliases, request.Unfiltered)
 	response.ExtraFields.Latency = latency.Milliseconds()
 
 	// Set raw request if enabled
@@ -653,6 +653,15 @@ func normalizeCachedUsage(usage *schemas.BifrostLLMUsage) {
 func accumulateAnthropicResponsesUsage(usage *schemas.ResponsesResponseUsage, billedUsage *schemas.BifrostLLMUsage, usageToProcess *AnthropicUsage) {
 	if usage == nil || usageToProcess == nil {
 		return
+	}
+	// Keep the per-pass breakdown like the non-streaming converter; billable folding drops it.
+	if len(usageToProcess.Iterations) > 0 {
+		usage.Iterations = make([]schemas.ResponsesResponseUsage, len(usageToProcess.Iterations))
+		for i := range usageToProcess.Iterations {
+			if converted := ConvertAnthropicUsageToBifrostUsage(&usageToProcess.Iterations[i]); converted != nil {
+				usage.Iterations[i] = *converted
+			}
+		}
 	}
 	usageToProcess = billableAnthropicUsage(usageToProcess)
 	// Web search request count → billed as search queries (server tool use). The

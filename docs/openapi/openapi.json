@@ -57752,7 +57752,7 @@
                                   "items": {
                                     "type": "string"
                                   },
-                                  "description": "Allowlist. `[\"*\"]` allows every model; an empty or omitted list denies all. A list may not mix `*` with named entries."
+                                  "description": "Allowlist. `[\"*\"]` allows every model. A list may not mix `*` with named entries. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                                 },
                                 "blacklisted_models": {
                                   "type": "array",
@@ -57760,31 +57760,7 @@
                                   "items": {
                                     "type": "string"
                                   },
-                                  "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty or omitted list blocks no models. A list may not mix `*` with named entries."
-                                },
-                                "allowed_models_patterns": {
-                                  "type": "array",
-                                  "uniqueItems": true,
-                                  "items": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "not": {
-                                      "const": "*"
-                                    }
-                                  },
-                                  "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the project is saved. Ignored when `all_models_allowed` is true."
-                                },
-                                "blacklisted_models_patterns": {
-                                  "type": "array",
-                                  "uniqueItems": true,
-                                  "items": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "not": {
-                                      "const": "*"
-                                    }
-                                  },
-                                  "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+                                  "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                                 },
                                 "key_ids": {
                                   "type": "array",
@@ -58818,7 +58794,7 @@
                           "items": {
                             "type": "string"
                           },
-                          "description": "Allowlist. `[\"*\"]` allows every model; an empty or omitted list denies all. A list may not mix `*` with named entries."
+                          "description": "Allowlist. `[\"*\"]` allows every model. A list may not mix `*` with named entries. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                         },
                         "blacklisted_models": {
                           "type": "array",
@@ -58826,31 +58802,7 @@
                           "items": {
                             "type": "string"
                           },
-                          "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty or omitted list blocks no models. A list may not mix `*` with named entries."
-                        },
-                        "allowed_models_patterns": {
-                          "type": "array",
-                          "uniqueItems": true,
-                          "items": {
-                            "type": "string",
-                            "minLength": 1,
-                            "not": {
-                              "const": "*"
-                            }
-                          },
-                          "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the project is saved. Ignored when `all_models_allowed` is true."
-                        },
-                        "blacklisted_models_patterns": {
-                          "type": "array",
-                          "uniqueItems": true,
-                          "items": {
-                            "type": "string",
-                            "minLength": 1,
-                            "not": {
-                              "const": "*"
-                            }
-                          },
-                          "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+                          "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                         },
                         "key_ids": {
                           "type": "array",
@@ -59501,7 +59453,7 @@
                                 "items": {
                                   "type": "string"
                                 },
-                                "description": "Allowlist. `[\"*\"]` allows every model; an empty or omitted list denies all. A list may not mix `*` with named entries."
+                                "description": "Allowlist. `[\"*\"]` allows every model. A list may not mix `*` with named entries. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                               },
                               "blacklisted_models": {
                                 "type": "array",
@@ -59509,31 +59461,7 @@
                                 "items": {
                                   "type": "string"
                                 },
-                                "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty or omitted list blocks no models. A list may not mix `*` with named entries."
-                              },
-                              "allowed_models_patterns": {
-                                "type": "array",
-                                "uniqueItems": true,
-                                "items": {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "not": {
-                                    "const": "*"
-                                  }
-                                },
-                                "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the project is saved. Ignored when `all_models_allowed` is true."
-                              },
-                              "blacklisted_models_patterns": {
-                                "type": "array",
-                                "uniqueItems": true,
-                                "items": {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "not": {
-                                    "const": "*"
-                                  }
-                                },
-                                "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+                                "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                               },
                               "key_ids": {
                                 "type": "array",
@@ -60579,7 +60507,7 @@
                                 "items": {
                                   "type": "string"
                                 },
-                                "description": "Allowlist. `[\"*\"]` allows every model; an empty or omitted list denies all. A list may not mix `*` with named entries."
+                                "description": "Allowlist. `[\"*\"]` allows every model. A list may not mix `*` with named entries. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                               },
                               "blacklisted_models": {
                                 "type": "array",
@@ -60587,31 +60515,7 @@
                                 "items": {
                                   "type": "string"
                                 },
-                                "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty or omitted list blocks no models. A list may not mix `*` with named entries."
-                              },
-                              "allowed_models_patterns": {
-                                "type": "array",
-                                "uniqueItems": true,
-                                "items": {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "not": {
-                                    "const": "*"
-                                  }
-                                },
-                                "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the project is saved. Ignored when `all_models_allowed` is true."
-                              },
-                              "blacklisted_models_patterns": {
-                                "type": "array",
-                                "uniqueItems": true,
-                                "items": {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "not": {
-                                    "const": "*"
-                                  }
-                                },
-                                "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+                                "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                               },
                               "key_ids": {
                                 "type": "array",
@@ -61643,7 +61547,7 @@
                           "items": {
                             "type": "string"
                           },
-                          "description": "Allowlist. `[\"*\"]` allows every model; an empty or omitted list denies all. A list may not mix `*` with named entries."
+                          "description": "Allowlist. `[\"*\"]` allows every model. A list may not mix `*` with named entries. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                         },
                         "blacklisted_models": {
                           "type": "array",
@@ -61651,31 +61555,7 @@
                           "items": {
                             "type": "string"
                           },
-                          "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty or omitted list blocks no models. A list may not mix `*` with named entries."
-                        },
-                        "allowed_models_patterns": {
-                          "type": "array",
-                          "uniqueItems": true,
-                          "items": {
-                            "type": "string",
-                            "minLength": 1,
-                            "not": {
-                              "const": "*"
-                            }
-                          },
-                          "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the project is saved. Ignored when `all_models_allowed` is true."
-                        },
-                        "blacklisted_models_patterns": {
-                          "type": "array",
-                          "uniqueItems": true,
-                          "items": {
-                            "type": "string",
-                            "minLength": 1,
-                            "not": {
-                              "const": "*"
-                            }
-                          },
-                          "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+                          "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                         },
                         "key_ids": {
                           "type": "array",
@@ -62332,7 +62212,7 @@
                                 "items": {
                                   "type": "string"
                                 },
-                                "description": "Allowlist. `[\"*\"]` allows every model; an empty or omitted list denies all. A list may not mix `*` with named entries."
+                                "description": "Allowlist. `[\"*\"]` allows every model. A list may not mix `*` with named entries. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                               },
                               "blacklisted_models": {
                                 "type": "array",
@@ -62340,31 +62220,7 @@
                                 "items": {
                                   "type": "string"
                                 },
-                                "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty or omitted list blocks no models. A list may not mix `*` with named entries."
-                              },
-                              "allowed_models_patterns": {
-                                "type": "array",
-                                "uniqueItems": true,
-                                "items": {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "not": {
-                                    "const": "*"
-                                  }
-                                },
-                                "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the project is saved. Ignored when `all_models_allowed` is true."
-                              },
-                              "blacklisted_models_patterns": {
-                                "type": "array",
-                                "uniqueItems": true,
-                                "items": {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "not": {
-                                    "const": "*"
-                                  }
-                                },
-                                "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+                                "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                               },
                               "key_ids": {
                                 "type": "array",
@@ -65087,7 +64943,7 @@
                                   "items": {
                                     "type": "string"
                                   },
-                                  "description": "Allowlist. `[\"*\"]` allows every model; an empty or omitted list denies all. A list may not mix `*` with named entries."
+                                  "description": "Allowlist. `[\"*\"]` allows every model. A list may not mix `*` with named entries. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                                 },
                                 "blacklisted_models": {
                                   "type": "array",
@@ -65095,31 +64951,7 @@
                                   "items": {
                                     "type": "string"
                                   },
-                                  "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty or omitted list blocks no models. A list may not mix `*` with named entries."
-                                },
-                                "allowed_models_patterns": {
-                                  "type": "array",
-                                  "uniqueItems": true,
-                                  "items": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "not": {
-                                      "const": "*"
-                                    }
-                                  },
-                                  "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the project is saved. Ignored when `all_models_allowed` is true."
-                                },
-                                "blacklisted_models_patterns": {
-                                  "type": "array",
-                                  "uniqueItems": true,
-                                  "items": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "not": {
-                                      "const": "*"
-                                    }
-                                  },
-                                  "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+                                  "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                                 },
                                 "key_ids": {
                                   "type": "array",
@@ -95782,6 +95614,10 @@
           },
           "request_type": {
             "type": "string"
+          },
+          "error_type": {
+            "type": "string",
+            "description": "Normalized, low-cardinality classification of why the request failed, declared by whichever component refused it. Prefixed by fault domain (caller_, policy_, provider_, bifrost_). Absent on failures that were not classified at source."
           }
         }
       },
@@ -105627,6 +105463,28 @@
                 "description": "End offset of the video"
               }
             }
+          },
+          "mediaResolution": {
+            "type": "object",
+            "description": "Per-part media resolution, overriding generationConfig.mediaResolution for this part alone. Supported on Gemini 3 and later; MEDIA_RESOLUTION_ULTRA_HIGH is image-only.",
+            "properties": {
+              "level": {
+                "type": "string",
+                "enum": [
+                  "MEDIA_RESOLUTION_UNSPECIFIED",
+                  "MEDIA_RESOLUTION_LOW",
+                  "MEDIA_RESOLUTION_MEDIUM",
+                  "MEDIA_RESOLUTION_HIGH",
+                  "MEDIA_RESOLUTION_ULTRA_HIGH"
+                ],
+                "description": "The tokenization quality used for the given media"
+              },
+              "numTokens": {
+                "type": "integer",
+                "format": "int32",
+                "description": "Required sequence length for media tokenization (Gemini API only)"
+              }
+            }
           }
         }
       },
@@ -108675,38 +108533,14 @@
             "items": {
               "type": "string"
             },
-            "description": "Models this key can serve (allowlist). `[\"*\"]` allows every model; an empty list denies all. A list may not mix `*` with named entries."
+            "description": "List of models this key can access (whitelist). `[\"*\"]` allows every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name; an empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400. `blacklisted_models` wins over this list."
           },
           "blacklisted_models": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Models this key must never serve (denylist, wins over the allowlist). `[\"*\"]` blocks every model. A list may not mix `*` with named entries."
-          },
-          "models_patterns": {
-            "type": "array",
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "not": {
-                "const": "*"
-              }
-            },
-            "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the key is saved."
-          },
-          "blacklisted_models_patterns": {
-            "type": "array",
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "not": {
-                "const": "*"
-              }
-            },
-            "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+            "description": "List of models this key cannot access (blacklist), which wins over `models`. `[\"*\"]` blocks every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name; an empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
           },
           "weight": {
             "type": "number",
@@ -110648,38 +110482,14 @@
             "items": {
               "type": "string"
             },
-            "description": "Allowlist. `[\"*\"]` allows every model; an empty list denies all. A list may not mix `*` with named entries."
+            "description": "Allowlist. `[\"*\"]` allows every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
           },
           "blacklisted_models": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty list blocks no models. A list may not mix `*` with named entries."
-          },
-          "allowed_models_patterns": {
-            "type": "array",
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "not": {
-                "const": "*"
-              }
-            },
-            "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the configuration is saved."
-          },
-          "blacklisted_models_patterns": {
-            "type": "array",
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "not": {
-                "const": "*"
-              }
-            },
-            "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+            "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
           },
           "allow_all_keys": {
             "type": "boolean"
@@ -110996,38 +110806,14 @@
                   "items": {
                     "type": "string"
                   },
-                  "description": "Allowlist. `[\"*\"]` allows every model; an empty list denies all. A list may not mix `*` with named entries."
+                  "description": "Allowlist. `[\"*\"]` allows every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                 },
                 "blacklisted_models": {
                   "type": "array",
                   "items": {
                     "type": "string"
                   },
-                  "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty list blocks no models. A list may not mix `*` with named entries."
-                },
-                "allowed_models_patterns": {
-                  "type": "array",
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "not": {
-                      "const": "*"
-                    }
-                  },
-                  "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the configuration is saved."
-                },
-                "blacklisted_models_patterns": {
-                  "type": "array",
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "not": {
-                      "const": "*"
-                    }
-                  },
-                  "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+                  "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                 },
                 "budgets": {
                   "type": "array",
@@ -111163,38 +110949,14 @@
                   "items": {
                     "type": "string"
                   },
-                  "description": "Allowlist. `[\"*\"]` allows every model; an empty list denies all. A list may not mix `*` with named entries."
+                  "description": "Allowlist. `[\"*\"]` allows every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                 },
                 "blacklisted_models": {
                   "type": "array",
                   "items": {
                     "type": "string"
                   },
-                  "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks everything; an empty list blocks no models. A list may not mix `*` with named entries."
-                },
-                "allowed_models_patterns": {
-                  "type": "array",
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "not": {
-                      "const": "*"
-                    }
-                  },
-                  "description": "RE2 patterns that allow models by name shape, next to the exact allowlist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. `*` is not a valid pattern. Blank or whitespace-only entries, duplicate patterns, and patterns RE2 rejects are refused when the configuration is saved."
-                },
-                "blacklisted_models_patterns": {
-                  "type": "array",
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "not": {
-                      "const": "*"
-                    }
-                  },
-                  "description": "RE2 patterns that block models by name shape, next to the exact denylist. Each pattern is matched case-insensitively as a full match against the model name and `provider/model`. Block patterns win over the allowlist and the allow patterns. `*` is not a valid pattern, and blank or duplicate entries are refused."
+                  "description": "Denylist, which wins over the allowlist. `[\"*\"]` blocks every model. An entry starting with `regex:` is an RE2 pattern matched case-insensitively against the whole model name. An empty pattern, `regex:*`, or a pattern that does not compile is rejected with 400."
                 },
                 "budgets": {
                   "type": "array",
