@@ -1325,6 +1325,42 @@ type AnthropicContentBlock struct {
 	Trigger *AnthropicFallbackTrigger `json:"trigger,omitempty"` // why the handoff happened
 }
 
+// DiscoveredToolReferences returns the tool_reference blocks a
+// tool_search_tool_result carries, accepting both shapes the payload arrives in.
+//
+// Anthropic nests them one level down, inside a tool_search_tool_search_result
+// "content" object:
+//
+//	{"type":"tool_search_tool_result","tool_use_id":"srvtoolu_...",
+//	 "content":{"type":"tool_search_tool_search_result",
+//	            "tool_references":[{"type":"tool_reference","tool_name":"..."}]}}
+//
+// (https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool)
+//
+// ToolReferences is declared flat, so live traffic never populates it:
+// AnthropicContent.UnmarshalJSON's single-object fallback parks the inner object in
+// Content.ContentBlocks, one level below where every reader was looking. Bifrost's
+// own rebuild (convertBifrostToolSearchCallToAnthropicBlocks) does set the flat
+// field, so both are honoured, flat first. The error variant
+// (tool_search_tool_result_error) legitimately carries none and yields nil.
+func (b *AnthropicContentBlock) DiscoveredToolReferences() []AnthropicContentBlock {
+	if b == nil {
+		return nil
+	}
+	if len(b.ToolReferences) > 0 {
+		return b.ToolReferences
+	}
+	if b.Content == nil {
+		return nil
+	}
+	for _, inner := range b.Content.ContentBlocks {
+		if len(inner.ToolReferences) > 0 {
+			return inner.ToolReferences
+		}
+	}
+	return nil
+}
+
 // AnthropicFallbackModel is the {model} object on a fallback content block's from/to fields.
 type AnthropicFallbackModel struct {
 	Model string `json:"model"`
@@ -2172,8 +2208,18 @@ type AnthropicMessageError struct {
 
 // AnthropicMessageErrorStruct represents the error structure of an Anthropic messages API error response
 type AnthropicMessageErrorStruct struct {
-	Type    string `json:"type"`    // Error type
-	Message string `json:"message"` // Error message
+	Type    string                        `json:"type"`              // Error type
+	Message string                        `json:"message"`           // Error message
+	Details *AnthropicMessageErrorDetails `json:"details,omitempty"` // Machine-readable details some errors carry (e.g. thread error codes)
+}
+
+// AnthropicMessageErrorDetails is the optional machine-readable payload of an
+// Anthropic error envelope. Clients key recovery behavior on ErrorCode (e.g.
+// "thread_not_found" triggers a full-conversation replay, and
+// "thread_unsupported_request" additionally drops the thread field for the
+// rest of the session).
+type AnthropicMessageErrorDetails struct {
+	ErrorCode string `json:"error_code,omitempty"`
 }
 
 // AnthropicError represents the error response structure from Anthropic's API (legacy)

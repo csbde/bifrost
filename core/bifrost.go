@@ -6995,6 +6995,13 @@ func (bifrost *Bifrost) requestWorker(provider schemas.Provider, config *schemas
 		} else {
 			req.Context.ClearValue(schemas.BifrostContextKeyDoesNotSendDoneMarker)
 		}
+		// Same set-or-clear discipline: wait_for_usage must never leak onto a fallback provider
+		// that did not declare it, or that provider's stream would hold past finish_reason.
+		if config.CustomProviderConfig != nil && config.CustomProviderConfig.WaitForUsage {
+			req.Context.SetValue(schemas.BifrostContextKeyWaitForUsage, true)
+		} else {
+			req.Context.ClearValue(schemas.BifrostContextKeyWaitForUsage)
+		}
 
 		bifrost.endCoreSpan(workerSetupSpan)
 
@@ -7368,7 +7375,23 @@ func (bifrost *Bifrost) requestWorker(provider schemas.Provider, config *schemas
 			bifrost.endCoreSpan(miscSpan)
 			req.sentAt = time.Now()
 
-			if !IsStreamRequestType(req.RequestType) && !req.claimDelivery() {
+			if IsStreamRequestType(req.RequestType) {
+				// Streaming takes no part in the claim; its caller keeps a ctx escape
+				// and may already have released the message back to the pool, so the
+				// guarded send stays. Teardown bills via the provider goroutine.
+				deliveryTimer.Reset(5 * time.Second)
+				select {
+				case req.Err <- *bifrostError:
+					// Error sent successfully
+				case <-req.Context.Done():
+					// Client no longer listening, log and continue
+					bifrost.logger.Debug("Client context cancelled while sending error response")
+				case <-deliveryTimer.C:
+					// Timeout to prevent indefinite blocking
+					bifrost.logger.Warn("Timeout while sending error response, client may have disconnected")
+				}
+				deliveryTimer.Stop()
+			} else if !req.claimDelivery() {
 				// tryRequest abandoned the handoff on ctx.Done: it will never read
 				// req.Err and does not touch the message again, so this side owns both
 				// the value and the message. The claim is what makes this deterministic:
@@ -7379,23 +7402,11 @@ func (bifrost *Bifrost) requestWorker(provider schemas.Provider, config *schemas
 				bifrost.billAbandonedTerminal(req, nil, bifrostError)
 				bifrost.releaseChannelMessage(req)
 			} else {
-				// Claimed (or streaming, whose teardown bills via the provider goroutine):
-				// the caller is committed to receiving. Send with context awareness to
-				// prevent deadlock.
-				deliveryTimer.Reset(5 * time.Second)
-				select {
-				case req.Err <- *bifrostError:
-					// Error sent successfully
-				case <-req.Context.Done():
-					// Only reachable if the send could block, which a cap-1 channel drained
-					// on acquire never does. A claimed caller is receiving; nothing to bill.
-					bifrost.logger.Debug("Client context cancelled while sending error response")
-				case <-deliveryTimer.C:
-					// Unreachable while req.Err is a cap-1 channel drained on acquire;
-					// kept as the guard if that invariant ever changes.
-					bifrost.logger.Warn("Timeout while sending error response, client may have disconnected")
-				}
-				deliveryTimer.Stop()
+				// Claimed: the caller is committed to receiving and req.Err is a cap-1
+				// channel drained on acquire, so this never blocks. No ctx.Done arm:
+				// with a done context both arms are ready, select flips a coin, and a
+				// discarded value strands the committed caller forever (#7308).
+				req.Err <- *bifrostError
 			}
 		} else {
 			// Time the field population as "miscellaneous", then stamp sentAt just before
@@ -7432,22 +7443,11 @@ func (bifrost *Bifrost) requestWorker(provider schemas.Provider, config *schemas
 				bifrost.billAbandonedTerminal(req, result, nil)
 				bifrost.releaseChannelMessage(req)
 			} else {
-				// Claimed: the caller is committed to receiving. Send with context
-				// awareness to prevent deadlock.
-				deliveryTimer.Reset(5 * time.Second)
-				select {
-				case req.Response <- result:
-					// Response sent successfully
-				case <-req.Context.Done():
-					// Only reachable if the send could block, which a cap-1 channel drained
-					// on acquire never does. A claimed caller is receiving; nothing to bill.
-					bifrost.logger.Debug("Client context cancelled while sending response")
-				case <-deliveryTimer.C:
-					// Unreachable while req.Response is a cap-1 channel drained on
-					// acquire; kept as the guard if that invariant ever changes.
-					bifrost.logger.Warn("Timeout while sending response, client may have disconnected")
-				}
-				deliveryTimer.Stop()
+				// Claimed: the caller is committed to receiving and req.Response is a
+				// cap-1 channel drained on acquire, so this never blocks. No ctx.Done
+				// arm: with a done context both arms are ready, select flips a coin, and
+				// a discarded value strands the committed caller forever (#7308).
+				req.Response <- result
 			}
 		}
 	}
@@ -7564,8 +7564,8 @@ func promptCacheResponsesRequest(ctx *schemas.BifrostContext, config *schemas.Pr
 }
 
 // prepareResponsesRequest returns the Responses request to dispatch for one attempt:
-// prompt-cache breakpoints first, then namespace tools flattened when the target wire
-// does not understand them (#7048). Both steps are copy-on-write, so the shared
+// prompt-cache breakpoints first, then embedded client tools promoted and namespace
+// tools flattened when the target wire does not understand them. All steps are copy-on-write, so the shared
 // req.BifrostRequest keeps the caller's namespaces for a later fallback attempt against
 // a wire that does.
 //
@@ -7578,18 +7578,25 @@ func prepareResponsesRequest(ctx *schemas.BifrostContext, config *schemas.Provid
 	if r == nil {
 		return nil, nil
 	}
+	var supported bool
+	if capable, ok := provider.(schemas.ResponsesNamespaceToolProvider); ok {
+		supported = capable.SupportsResponsesNamespaceTools(ctx, key, r.Model)
+	} else {
+		supported = providerUtils.ResponsesNamespaceToolsSupported(ctx, schemas.ResolveBaseProvider(ctx, provider.GetProviderKey()), r.Model)
+	}
+	if !supported {
+		var bifrostErr *schemas.BifrostError
+		r, bifrostErr = hoistResponsesAdditionalTools(r)
+		if bifrostErr != nil {
+			return nil, bifrostErr
+		}
+	}
 	// Codex's explicit "functions" namespace is the default namespace by definition,
 	// so it is unwrapped for every wire before the support check: Bedrock Mantle
 	// reserves the name, and flattening wires would otherwise prefix its members.
 	r, bifrostErr := providerUtils.UnwrapDefaultNamespaceTools(r)
 	if bifrostErr != nil {
 		return nil, bifrostErr
-	}
-	var supported bool
-	if capable, ok := provider.(schemas.ResponsesNamespaceToolProvider); ok {
-		supported = capable.SupportsResponsesNamespaceTools(ctx, key, r.Model)
-	} else {
-		supported = providerUtils.ResponsesNamespaceToolsSupported(ctx, schemas.ResolveBaseProvider(ctx, provider.GetProviderKey()), r.Model)
 	}
 	if supported {
 		// Pass-through: the request carries no alias map, so nothing is restored.
@@ -9222,10 +9229,11 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 			// NOTE: Model filtering uses the original requested model (which may be an alias).
 			// key.Models and key.BlacklistedModels must therefore be expressed in alias keys.
 			// The provider-specific identifier is resolved later in the handler closure via key.Aliases.Resolve(model).
+			// vLLM also resolves a per-key copy below because ModelName contains the identifier served by that key.
 			modelSupported := hasValue && key.Models.IsAllowed(model) && !key.BlacklistedModels.IsBlocked(model)
 			if baseProviderType == schemas.VLLM && key.VLLMKeyConfig != nil {
 				if key.VLLMKeyConfig.ModelName != "" {
-					modelSupported = modelSupported && (key.VLLMKeyConfig.ModelName == model)
+					modelSupported = modelSupported && (key.VLLMKeyConfig.ModelName == key.Aliases.Resolve(model))
 				}
 			}
 			if modelSupported {

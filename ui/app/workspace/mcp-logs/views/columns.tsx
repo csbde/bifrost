@@ -123,7 +123,7 @@ export const createMCPColumns = (
 			const icon = appKey ? customAppIcons[appKey] || app.icon : app.icon;
 			return (
 				<div className="flex min-w-0 items-center gap-2" title={row.original.user_agent || undefined}>
-					{icon ? <img src={icon} alt={app.name} width={14} height={14} loading="lazy" decoding="async" /> : null}
+					{icon ? <img src={icon} alt={app.name} width={20} height={20} loading="lazy" decoding="async" className="shrink-0" /> : null}
 					<span className="truncate text-[12px]">{app.name}</span>
 				</div>
 			);
@@ -139,8 +139,8 @@ export const createMCPColumns = (
 		),
 		size: 120,
 		cell: ({ row }) => {
-			const latency = row.original.latency;
 			const presentation = getMCPLogPresentation(row.original);
+			const latency = presentation.policy ? presentation.inspectionDuration : (row.original.latency ?? presentation.observedDuration);
 			return (
 				<div className="pl-4 text-sm" title={presentation.description}>
 					<span className="font-mono">
@@ -150,9 +150,7 @@ export const createMCPColumns = (
 								? `${presentation.inspectionDuration}ms`
 								: "Not recorded"}
 					</span>
-					<span className="text-muted-foreground block text-xs">
-						{latency != null ? "Execution" : presentation.policy ? "Policy check" : "Execution time"}
-					</span>
+					<span className="text-muted-foreground block text-xs">{presentation.durationLabel}</span>
 				</div>
 			);
 		},

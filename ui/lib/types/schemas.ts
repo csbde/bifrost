@@ -823,6 +823,7 @@ export const customProviderConfigSchema = z
 		base_provider_type: knownProviderSchema,
 		is_key_less: z.boolean().optional(),
 		does_not_send_done_marker: z.boolean().optional(),
+		wait_for_usage: z.boolean().optional(),
 		allowed_requests: allowedRequestsSchema.optional(),
 		request_path_overrides: z.record(z.string(), z.string().optional()).optional(),
 	})
@@ -845,6 +846,7 @@ export const formCustomProviderConfigSchema = z
 		base_provider_type: z.string().min(1, "Base provider type is required"),
 		is_key_less: z.boolean().optional(),
 		does_not_send_done_marker: z.boolean().optional(),
+		wait_for_usage: z.boolean().optional(),
 		allowed_requests: allowedRequestsSchema.optional(),
 		request_path_overrides: z.record(z.string(), z.string().optional()).optional(),
 	})
@@ -1260,6 +1262,7 @@ export const prometheusFormSchema = z
 	.object({
 		metrics_enabled: z.boolean().default(true),
 		overhead_breakdown_enabled: z.boolean().default(false),
+		user_labels_enabled: z.boolean().default(false),
 		push_gateway_enabled: z.boolean().default(false),
 		prometheus_config: prometheusConfigSchema,
 	})
